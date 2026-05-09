@@ -65,9 +65,11 @@ export function DemoBattleScreen() {
     (state) => state.fillRandomQualificationScores,
   );
   const generateTop8 = useDemoBattleStore((state) => state.generateTop8);
-  const submitRandomVotesForBattle = useDemoBattleStore(
-    (state) => state.submitRandomVotesForBattle,
-  );
+  //   const submitRandomVotesForBattle = useDemoBattleStore(
+  //     (state) => state.submitRandomVotesForBattle,
+  //   );
+  const eventLog = useDemoBattleStore((state) => state.eventLog);
+  const replayEventLog = useDemoBattleStore((state) => state.replayEventLog);
   const generateNextRound = useDemoBattleStore(
     (state) => state.generateNextRound,
   );
@@ -99,6 +101,13 @@ export function DemoBattleScreen() {
     (state) => state.submitBattleVote,
   );
 
+  const lastCommandError = useDemoBattleStore(
+    (state) => state.lastCommandError,
+  );
+  const clearLastCommandError = useDemoBattleStore(
+    (state) => state.clearLastCommandError,
+  );
+
   const getJudgeScore = (judgeId: string) => {
     if (!currentParticipant) {
       return null;
@@ -121,6 +130,13 @@ export function DemoBattleScreen() {
 
         <Button title="Reset" onPress={resetDemo} />
       </View>
+      {lastCommandError && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>Command error</Text>
+          <Text style={styles.errorText}>{lastCommandError.message}</Text>
+          <Button title="Dismiss" onPress={clearLastCommandError} />
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Participants</Text>
@@ -408,6 +424,9 @@ export function DemoBattleScreen() {
         <Text style={styles.text}>Scores: {scores.length}</Text>
         <Text style={styles.text}>Votes: {votes.length}</Text>
         <Text style={styles.text}>Battles: {battles.length}</Text>
+        <Text style={styles.text}>Events: {eventLog.length}</Text>
+
+        <Button title="Replay event log" onPress={replayEventLog} />
       </View>
     </ScrollView>
   );
@@ -563,5 +582,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#f3f3f3",
     gap: 6,
+  },
+
+  errorBox: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#ff4d4f",
+    backgroundColor: "#fff1f0",
+    gap: 6,
+  },
+
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#cf1322",
+  },
+
+  errorText: {
+    fontSize: 14,
+    color: "#cf1322",
   },
 });
