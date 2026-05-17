@@ -1,4 +1,6 @@
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import "react-native-gesture-handler";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -12,10 +14,12 @@ export const unstable_settings = {
 
 const RootWithQuery: React.FC = () => {
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-    </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+      </Stack>
+    </GestureHandlerRootView>
   );
 };
 

@@ -4,9 +4,11 @@
     "strict": true,
     "baseUrl": "./src",
     "paths": {
+      "@screens/*": ["screens/*"],
       "@components": ["components"],
       "@constants/*": ["constants/*"],
       "@resources": ["resources"]
     }
-  }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

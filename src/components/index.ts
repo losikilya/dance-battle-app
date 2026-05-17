@@ -15,3 +15,5 @@ export * from "./List";
 export * from "./Skeleton";
 export * from "./Text";
 export * from "./TabBar";
+export * from "./Select";
+export * from "./RangeSlider";

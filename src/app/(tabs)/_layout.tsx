@@ -20,69 +20,82 @@ export default function TabLayout(): React.JSX.Element {
   }
 
   return (
-    <Tabs
-      screenOptions={({ navigation }) => {
-        const state = navigation.getState();
-        const hasNestedNavigation =
-          Number(state.routes[state.index].state?.index ?? 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
+      <Tabs
+        screenOptions={({ navigation }) => {
+          const state = navigation.getState();
+          const hasNestedNavigation =
+            Number(state.routes[state.index].state?.index ?? 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
 
-        return {
-          headerStyle: { backgroundColor: Colors.dark.background, height: 0 },
-          tabBarStyle: {
-            ...(Platform.OS === IOS
-              ? {
-                  backgroundColor: "transparent",
-                }
-              : {}),
-            height: windowHeight * 0.1,
-            borderTopColor: "transparent",
-            paddingTop: 12,
-            display: hasNestedNavigation ? "none" : undefined,
-          },
-          tabBarActiveTintColor: Colors.dark.tint,
-        };
-      }}
-      tabBar={(props) => {
-        const state = props.navigation.getState();
-        const hasNestedNavigation =
-          (state.routes[state.index].state?.index || 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
+          return {
+            headerStyle: { backgroundColor: Colors.dark.background, height: 0 },
+            tabBarStyle: {
+              ...(Platform.OS === IOS
+                ? {
+                    backgroundColor: "transparent",
+                  }
+                : {}),
+              height: windowHeight * 0.1,
+              borderTopColor: "transparent",
+              paddingTop: 12,
+              display: hasNestedNavigation ? "none" : undefined,
+            },
+            tabBarActiveTintColor: Colors.dark.tint,
+          };
+        }}
+        tabBar={(props) => {
+          const state = props.navigation.getState();
+          const hasNestedNavigation =
+            (state.routes[state.index].state?.index || 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
 
-        return hasNestedNavigation ? <View /> : <TabBar {...props} />;
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "",
-          tabBarIcon: ({ color }) => (
-            <Icon>
-              <Ionicons name="grid-outline" size={24} style={{ color }} />
-            </Icon>
-          ),
+          return hasNestedNavigation ? <View /> : <TabBar {...props} />;
         }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="git-network-outline" size={24} style={{ color }} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="design"
-        options={{
-          title: "",
-          tabBarIcon: ({ color }) => (
-            <Ionicons
-              name="color-palette-outline"
-              size={24}
-              style={{ color }}
-            />
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Icon>
+                <Ionicons name="grid-outline" size={24} style={{ color }} />
+              </Icon>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Ionicons
+                name="git-network-outline"
+                size={24}
+                style={{ color }}
+              />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="event"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="create-outline" size={24} style={{ color }} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="design"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Ionicons
+                name="color-palette-outline"
+                size={24}
+                style={{ color }}
+              />
+            ),
+          }}
+        />
+      </Tabs>
   );
 }

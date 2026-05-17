@@ -90,11 +90,11 @@ export const Text: React.FC<StyledTextProps> = ({
   return (
     <DefaultText
       style={[
-        style,
         styles[variant],
         color in styles ? styles[color as Color] : { color },
         contrast && styles.contrast,
         { textAlign: centered ? "center" : "left" },
+        style,
       ]}
       ellipsizeMode={ellipsizeMode}
       numberOfLines={numberOfLines}

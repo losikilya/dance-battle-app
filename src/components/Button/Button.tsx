@@ -1,4 +1,4 @@
-import React, { PropsWithChildren } from "react";
+import React, { JSX, PropsWithChildren } from "react";
 import {
   TouchableOpacity,
   StyleSheet,
