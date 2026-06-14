@@ -5,7 +5,6 @@ import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
 import { ScoreNumpad } from './ScoreNumpad';
 import { CriteriaBar } from './CriteriaBar';
 
@@ -37,8 +36,10 @@ export const JudgeQualificationScreen: React.FC = () => {
 
   const status = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
-  const sendScore = useJudgingClientStore(s => s.sendScore);
-  const judgeId = useSessionStore(s => s.judgeId);
+  const submitCurrentQualificationScore = useJudgingClientStore(
+    s => s.submitCurrentQualificationScore,
+  );
+  const judgeId = useJudgingClientStore(s => s.assignedJudgeId);
 
   const participants = syncedState?.participants ?? [];
   const currentIndex = syncedState?.currentQualificationParticipantIndex ?? 0;
@@ -53,7 +54,7 @@ export const JudgeQualificationScreen: React.FC = () => {
 
   const handleSubmit = () => {
     if (!currentParticipant || selectedScore === null || alreadySubmitted || !judgeId) return;
-    sendScore({ participantId: currentParticipant.id, judgeId, score: selectedScore });
+    submitCurrentQualificationScore(selectedScore);
     setSelectedScore(null);
   };
 
@@ -120,7 +121,7 @@ export const JudgeQualificationScreen: React.FC = () => {
 
           <Button
             onPress={handleSubmit}
-            disabled={selectedScore === null || alreadySubmitted}
+            disabled={selectedScore === null || alreadySubmitted || !judgeId}
           >
             {getResource('judge_submit_score')}
           </Button>

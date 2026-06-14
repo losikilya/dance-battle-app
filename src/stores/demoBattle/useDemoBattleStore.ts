@@ -11,13 +11,20 @@ import { BattleAppState } from "@domain/sync/appState";
 import { AppEvent } from "@domain/sync/appEvent";
 import { applyEvent } from "@domain/sync/applyEvent";
 import { createInitialBattleState } from "@domain/sync/createInitialBattleState";
+import { createDemoParticipants } from "@domain/demo/createDemoEvent";
+import type { BattleFormat } from "@domain/event/types";
 import { createCommand } from "@domain/commands/createCommand";
 import { handleCommand } from "@domain/commands/commandHandlers";
-import { CommandError } from "@domain/commands/commandResult";
+import {
+  CommandError,
+  CommandHandlerResult,
+  commandFailure,
+} from "@domain/commands/commandResult";
 import { AppCommand } from "@domain/commands/command";
 import {
   clearAppEvents,
   loadAppEvents,
+  replaceAppEvents,
   saveAppEvents,
 } from "../../infrastructure/storage/appEventRepository";
 
@@ -77,12 +84,24 @@ type AddParticipantParams = {
 type CreateEventParams = {
   title: string;
   categoryTitle: string;
-  format: import("@domain/event/types").BattleFormat;
+  format: BattleFormat;
   judgesCount: number;
+};
+
+export type HostDemoEventParams = {
+  title?: string;
+  categoryTitle?: string;
+  participantsCount?: number;
+  judgesCount?: number;
+  format?: BattleFormat;
 };
 
 type DemoBattleActions = {
   hydrateFromStorage: () => Promise<void>;
+  executeRemoteCommand: (
+    command: AppCommand,
+  ) => Promise<CommandHandlerResult>;
+  createHostDemoEvent: (params?: HostDemoEventParams) => Promise<void>;
 
   resetDemo: () => Promise<void>;
   clearLastCommandError: () => void;
@@ -140,7 +159,31 @@ function createInitialStoreState(): DemoBattleState {
   };
 }
 
+function createHostDemoParticipant(
+  index: number,
+): Omit<Participant, "id" | "checkIn" | "status"> {
+  const demoParticipant = createDemoParticipants()[index];
+
+  if (demoParticipant) {
+    return {
+      number: index + 1,
+      name: demoParticipant.name,
+      crew: demoParticipant.crew,
+      city: demoParticipant.city,
+    };
+  }
+
+  return {
+    number: index + 1,
+    name: `Dancer ${index + 1}`,
+    crew: `Crew ${(index % 5) + 1}`,
+    city: `City ${(index % 4) + 1}`,
+  };
+}
+
 export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
+  let commandQueue: Promise<void> = Promise.resolve();
+
   const applyEventsToStore = (events: AppEvent[]) => {
     set((state) => {
       const nextBattleState = events.reduce(
@@ -157,32 +200,140 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     });
   };
 
-  const executeCommand = async (command: AppCommand) => {
-    const result = handleCommand(get(), command);
+  const enqueueOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const execution = commandQueue.then(operation);
 
-    if (result.error) {
-      set({
-        lastCommandError: result.error,
-      });
+    commandQueue = execution.then(
+      () => undefined,
+      () => undefined,
+    );
 
-      return;
-    }
+    return execution;
+  };
 
-    try {
-      await saveAppEvents(result.events);
-      applyEventsToStore(result.events);
-    } catch (error) {
-      set({
-        storageError:
+  const executePersistedCommand = (
+    command: AppCommand,
+  ): Promise<CommandHandlerResult> =>
+    enqueueOperation(async () => {
+      const result = handleCommand(pickBattleAppState(get()), command);
+
+      if (result.error) {
+        set({
+          lastCommandError: result.error,
+        });
+
+        return result;
+      }
+
+      try {
+        await saveAppEvents(result.events);
+        applyEventsToStore(result.events);
+        return result;
+      } catch (error) {
+        const message =
           error instanceof Error
             ? error.message
-            : "Failed to save events to storage",
-      });
-    }
+            : "Failed to save events to storage";
+
+        set({
+          storageError: message,
+        });
+
+        return commandFailure(
+          "action_not_allowed",
+          `Failed to persist command events: ${message}`,
+        );
+      }
+    });
+
+  const executeCommand = async (command: AppCommand): Promise<void> => {
+    await executePersistedCommand(command);
   };
 
   return {
     ...createInitialStoreState(),
+
+    executeRemoteCommand: executePersistedCommand,
+
+    createHostDemoEvent: async (params = {}) => {
+      await enqueueOperation(async () => {
+        const title = params.title ?? "Urban Clash 2026";
+        const categoryTitle = params.categoryTitle ?? "Hip-Hop 1x1";
+        const participantsCount = Math.max(
+          0,
+          Math.floor(params.participantsCount ?? 10),
+        );
+        const judgesCount = Math.max(
+          1,
+          Math.floor(params.judgesCount ?? 3),
+        );
+        const format = params.format ?? "top8";
+
+        let nextState = pickBattleAppState(get());
+        const nextEvents: AppEvent[] = [];
+
+        const appendCommand = (command: AppCommand): void => {
+          const result = handleCommand(nextState, command);
+
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
+
+          nextEvents.push(...result.events);
+          nextState = result.events.reduce(
+            (state, event) => applyEvent(state, event),
+            nextState,
+          );
+        };
+
+        appendCommand(createCommand("event.reset", {}));
+        appendCommand(
+          createCommand("event.create", {
+            title,
+            categoryTitle,
+            format,
+            judgesCount,
+          }),
+        );
+
+        for (const participant of nextState.participants) {
+          appendCommand(
+            createCommand("participant.remove", {
+              participantId: participant.id,
+            }),
+          );
+        }
+
+        for (let index = 0; index < participantsCount; index += 1) {
+          appendCommand(
+            createCommand(
+              "participant.add",
+              createHostDemoParticipant(index),
+            ),
+          );
+        }
+
+        try {
+          await replaceAppEvents(nextEvents);
+          set({
+            ...nextState,
+            eventLog: nextEvents,
+            lastCommandError: null,
+            storageError: null,
+            isHydrated: true,
+            isHydrating: false,
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to create Host demo event";
+
+          set({ storageError: message });
+          throw error;
+        }
+      });
+    },
 
     getRanking: () => {
       const { participants, scores } = get();

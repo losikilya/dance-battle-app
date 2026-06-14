@@ -45,3 +45,4 @@ yarn-error.*
 .claude/*
 .mcp.json
 docs/*
+!docs/UI_API.md

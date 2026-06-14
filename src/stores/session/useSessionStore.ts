@@ -9,13 +9,13 @@ type SessionState = {
 
 type SessionActions = {
   setRole: (role: AppRole | null) => void;
-  setJudgeId: (id: string) => void;
+  setJudgeId: (id: string | null) => void;
   setJudgeName: (name: string) => void;
 };
 
 export const useSessionStore = create<SessionState & SessionActions>((set) => ({
   role: null,
-  judgeId: 'judge_dev',
+  judgeId: null,
   judgeName: null,
   setRole: (role) => set({ role }),
   setJudgeId: (judgeId) => set({ judgeId }),

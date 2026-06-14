@@ -1,3 +1,5 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
+
 import { AppEvent } from '../../domain/sync/appEvent';
 import { getDatabase } from './database';
 import { runMigrations } from './migrations';
@@ -6,22 +8,23 @@ type AppEventRow = {
   event_json: string;
 };
 
-let initialized = false;
+let initializationPromise: Promise<SQLiteDatabase> | null = null;
 
-async function ensureInitialized() {
-  const db = await getDatabase();
-
-  if (!initialized) {
-    await runMigrations(db);
-    initialized = true;
+async function ensureInitialized(): Promise<SQLiteDatabase> {
+  if (!initializationPromise) {
+    initializationPromise = getDatabase().then(async (db) => {
+      await runMigrations(db);
+      return db;
+    });
   }
 
-  return db;
+  return initializationPromise;
 }
 
-export async function saveAppEvent(event: AppEvent) {
-  const db = await ensureInitialized();
-
+async function insertAppEvent(
+  db: SQLiteDatabase,
+  event: AppEvent,
+): Promise<void> {
   await db.runAsync(
     `
       INSERT OR IGNORE INTO app_events (
@@ -39,26 +42,30 @@ export async function saveAppEvent(event: AppEvent) {
   );
 }
 
-export async function saveAppEvents(events: AppEvent[]) {
+export async function saveAppEvent(event: AppEvent): Promise<void> {
+  const db = await ensureInitialized();
+
+  await insertAppEvent(db, event);
+}
+
+export async function saveAppEvents(events: AppEvent[]): Promise<void> {
   const db = await ensureInitialized();
 
   await db.withTransactionAsync(async () => {
     for (const event of events) {
-      await db.runAsync(
-        `
-          INSERT OR IGNORE INTO app_events (
-            id,
-            type,
-            event_json,
-            created_at
-          )
-          VALUES (?, ?, ?, ?)
-        `,
-        event.id,
-        event.type,
-        JSON.stringify(event),
-        event.createdAt,
-      );
+      await insertAppEvent(db, event);
+    }
+  });
+}
+
+export async function replaceAppEvents(events: AppEvent[]): Promise<void> {
+  const db = await ensureInitialized();
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM app_events');
+
+    for (const event of events) {
+      await insertAppEvent(db, event);
     }
   });
 }
@@ -83,7 +90,7 @@ export async function loadAppEvents(): Promise<AppEvent[]> {
     .filter((event): event is AppEvent => event !== null);
 }
 
-export async function clearAppEvents() {
+export async function clearAppEvents(): Promise<void> {
   const db = await ensureInitialized();
 
   await db.runAsync('DELETE FROM app_events');

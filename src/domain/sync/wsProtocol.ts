@@ -1,47 +1,78 @@
-import { BattleAppState } from './appState';
-import { AppEvent } from './appEvent';
+import type { AppCommand } from '../commands/command';
+import type { AppRole } from '../role/types';
+import type { AppEvent } from './appEvent';
+import type { BattleAppState } from './appState';
 
-export type ClientRole = 'judge' | 'mc' | 'spectator';
+export type ClientRole = Exclude<AppRole, 'host'>;
 
-// ── Messages: Judge → Host ─────────────────────────────────────────────────
-
-export type IdentifyMessage = {
-  type: 'identify';
-  judgeId: string;
-  name: string;
-  role: ClientRole;
+type SyncMessageMeta = {
+  messageId: string;
 };
 
-export type VoteMessage = {
-  type: 'vote';
-  battleId: string;
-  winnerId: string;
-};
-
-export type ScoreMessage = {
-  type: 'score';
-  participantId: string;
-  judgeId: string;
-  score: number;
-};
-
-export type ClientMessage = IdentifyMessage | VoteMessage | ScoreMessage;
-
-// ── Messages: Host → Judge ─────────────────────────────────────────────────
-
-export type AckMessage = {
-  type: 'ack';
+export type JoinMessage = SyncMessageMeta & {
+  type: 'join';
   deviceId: string;
+  role: ClientRole;
+  name?: string;
+  requestedJudgeId?: string;
 };
 
-export type StateSyncMessage = {
-  type: 'state_sync';
-  state: BattleAppState;
+export type JoinedMessage = SyncMessageMeta & {
+  type: 'joined';
+  requestMessageId: string;
+  assignedJudgeId: string | null;
+  snapshot: BattleAppState;
 };
 
-export type EventMessage = {
-  type: 'event';
-  appEvent: AppEvent;
+export type CommandMessage = SyncMessageMeta & {
+  type: 'command';
+  command: AppCommand;
 };
 
-export type HostMessage = AckMessage | StateSyncMessage | EventMessage;
+export type EventsMessage = SyncMessageMeta & {
+  type: 'events';
+  events: AppEvent[];
+};
+
+export type SnapshotMessage = SyncMessageMeta & {
+  type: 'snapshot';
+  snapshot: BattleAppState;
+};
+
+export type SnapshotRequestMessage = SyncMessageMeta & {
+  type: 'snapshot.request';
+};
+
+export type ErrorMessage = SyncMessageMeta & {
+  type: 'error';
+  requestMessageId?: string;
+  code: string;
+  message: string;
+};
+
+export type PingMessage = SyncMessageMeta & {
+  type: 'ping';
+};
+
+export type PongMessage = SyncMessageMeta & {
+  type: 'pong';
+  requestMessageId: string;
+};
+
+export type ClientMessage =
+  | JoinMessage
+  | CommandMessage
+  | SnapshotRequestMessage
+  | ErrorMessage
+  | PingMessage
+  | PongMessage;
+
+export type HostMessage =
+  | JoinedMessage
+  | EventsMessage
+  | SnapshotMessage
+  | ErrorMessage
+  | PingMessage
+  | PongMessage;
+
+export type SyncMessage = ClientMessage | HostMessage;

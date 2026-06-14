@@ -4,7 +4,7 @@ const DATABASE_NAME = 'dance_battle.db';
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export function getDatabase() {
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   if (!databasePromise) {
     databasePromise = SQLite.openDatabaseAsync(DATABASE_NAME);
   }

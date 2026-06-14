@@ -12,11 +12,12 @@ import { useSessionStore } from "@stores/session/useSessionStore";
 
 export const JudgeConnectScreen: React.FC = () => {
   const status = useJudgingClientStore((s) => s.status);
-  const error = useJudgingClientStore((s) => s.error);
+  const lastError = useJudgingClientStore((s) => s.lastError);
   const reconnectAttempts = useJudgingClientStore((s) => s.reconnectAttempts);
   const serverAddress = useJudgingClientStore((s) => s.serverAddress);
-  const connect = useJudgingClientStore((s) => s.connect);
+  const connectToHost = useJudgingClientStore((s) => s.connectToHost);
 
+  const requestedJudgeId = useSessionStore((s) => s.judgeId);
   const judgeName = useSessionStore((s) => s.judgeName);
   const setJudgeName = useSessionStore((s) => s.setJudgeName);
 
@@ -29,8 +30,19 @@ export const JudgeConnectScreen: React.FC = () => {
 
   const handleConnect = () => {
     if (!canConnect) return;
+    const trimmedAddress = address.trim();
+    const separatorIndex = trimmedAddress.lastIndexOf(":");
+    const host = trimmedAddress.slice(0, separatorIndex);
+    const port = Number(trimmedAddress.slice(separatorIndex + 1));
+
     setJudgeName(name.trim());
-    connect(address.trim());
+    connectToHost({
+      host,
+      port,
+      role: "judge",
+      name: name.trim(),
+      requestedJudgeId: requestedJudgeId ?? undefined,
+    });
   };
 
   const buttonLabel =
@@ -88,10 +100,10 @@ export const JudgeConnectScreen: React.FC = () => {
         {buttonLabel}
       </Button>
 
-      {status === "error" && error !== null && (
+      {status === "error" && lastError !== null && (
         <Box mt={16} p={12} style={styles.errorCard}>
           <Text variant="body2" style={styles.errorText}>
-            {error}
+            {lastError}
           </Text>
         </Box>
       )}

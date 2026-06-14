@@ -18,8 +18,9 @@ export const JudgeBattleVotingScreen: React.FC = () => {
   const [pendingVote, setPendingVote] = useState<string | null>(null);
 
   const syncedState = useJudgingClientStore(s => s.syncedState);
-  const sendVote = useJudgingClientStore(s => s.sendVote);
-  const judgeId = useSessionStore(s => s.judgeId);
+  const submitBattleVote = useJudgingClientStore(s => s.submitBattleVote);
+  const judgeId = useJudgingClientStore(s => s.assignedJudgeId);
+  const assignedJudgeName = useJudgingClientStore(s => s.assignedJudgeName);
   const judgeName = useSessionStore(s => s.judgeName);
 
   const battles = syncedState?.battles ?? [];
@@ -40,8 +41,8 @@ export const JudgeBattleVotingScreen: React.FC = () => {
   const slot = activeBattle?.slot;
 
   const handleConfirm = () => {
-    if (!activeBattleId || !pendingVote) return;
-    sendVote({ battleId: activeBattleId, winnerId: pendingVote });
+    if (!activeBattleId || !pendingVote || !judgeId) return;
+    submitBattleVote({ battleId: activeBattleId, winnerId: pendingVote });
     setPendingVote(null);
   };
 
@@ -53,8 +54,10 @@ export const JudgeBattleVotingScreen: React.FC = () => {
     >
       <Box direction="row" justify="space-between" align="center" mb={16}>
         <Text variant="body2" color="textSecondary">{getResource('judge_mode_label')}</Text>
-        {judgeName !== null && (
-          <Text variant="body2" color="primary">{judgeName}</Text>
+        {(assignedJudgeName ?? judgeName) !== null && (
+          <Text variant="body2" color="primary">
+            {assignedJudgeName ?? judgeName}
+          </Text>
         )}
       </Box>
 
@@ -130,7 +133,10 @@ export const JudgeBattleVotingScreen: React.FC = () => {
               </Box>
 
               {pendingVote !== null && (
-                <Button onPress={handleConfirm} disabled={!isVotingOpen}>
+                <Button
+                  onPress={handleConfirm}
+                  disabled={!isVotingOpen || !judgeId}
+                >
                   {getResource('judge_vote_confirm')}
                 </Button>
               )}
