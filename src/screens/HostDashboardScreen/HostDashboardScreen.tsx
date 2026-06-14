@@ -92,6 +92,11 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
 
       <Box gap={12} mb={24}>
         <ActionButton
+          label={getResource('create_event_title')}
+          icon="add-circle-outline"
+          onPress={() => router.push('/create-event')}
+        />
+        <ActionButton
           label={getResource('dashboard_action_participants')}
           icon="people-outline"
           onPress={() => router.push('/participants')}

@@ -1,93 +1,128 @@
-import {
-  Card,
-  Input,
-  Text,
-  Select,
-  CardSelect,
-  Box,
-  List,
-  RangeSlider,
-  Button,
-} from "@components";
-import { useState } from "react";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { useState } from 'react';
+import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Box, Text, Button, CardSelect, RangeSlider } from '@components';
+import Colors from '@constants/Colors';
+import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
+import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { BattleFormat } from '@domain/event/types';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 export function CreateEventScreen() {
-  // TODO: use form
-  const [name, setName] = useState("");
-  const [danceStyle, setDanceStyle] = useState("");
-  const [format, setFormat] = useState("");
-  const [judgesAmount, setJudgesAmount] = useState<number>();
+  const router = useRouter();
+  const createEvent = useDemoBattleStore(s => s.createEvent);
 
-  const canSave = name && danceStyle && format && judgesAmount;
+  const [title, setTitle] = useState('');
+  const [categoryTitle, setCategoryTitle] = useState('');
+  const [format, setFormat] = useState<BattleFormat>('top8');
+  const [judgesCount, setJudgesCount] = useState('3');
+
+  const canSubmit = title.trim().length > 0 && categoryTitle.trim().length > 0;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    createEvent({
+      title: title.trim(),
+      categoryTitle: categoryTitle.trim(),
+      format,
+      judgesCount: parseInt(judgesCount, 10),
+    });
+    router.replace('/(tabs)');
+  };
 
   return (
-    <List>
-      <Box gap={48} pb={300}>
-        <Text variant="h1" centered color="primary">
-          Event management
-        </Text>
-        <Card>
-          <Text variant="h2" centered>
-            Setup new battle
-          </Text>
-          <Input value={name} onChangeText={setName} label="Event Name" />
-          <Select
-            label="Dance Style"
-            value={danceStyle}
-            onChange={setDanceStyle}
-            options={[
-              { label: "HipHop", value: "hh" },
-              { label: "House", value: "h" },
-              { label: "Breaking", value: "b" },
-              { label: "Experimental", value: "e" },
-              { label: "Contemporary", value: "c" },
-            ]}
-          />
-          <CardSelect
-            value={format}
-            label="Battle Format"
-            onChange={setFormat}
-            options={[
-              { label: "TOP 8", value: "8" },
-              { label: "TOP 16", value: "16" },
-              { label: "TOP 32", value: "32" },
-            ]}
-          />
-        </Card>
-        <Card>
-          <Text variant="h2" centered>
-            Judging core
-          </Text>
-
-          <CardSelect
-            value={judgesAmount}
-            label="Number of judges"
-            onChange={(value) => setJudgesAmount(Number(value))}
-            options={[
-              { label: "3", value: "3" },
-              { label: "5", value: "5" },
-              { label: "7", value: "7" },
-            ]}
-          />
-
-          <Box mt={24}>
-            <RangeSlider label="Quality score range" />
-          </Box>
-        </Card>
-        <Box mt={24}>
-          <Button
-            disabled={!canSave}
-            startIcon={
-              <Ionicons name="rocket" size={32} style={{ color: "black" }} />
-            }
-          >
-            <Text color="black" variant="h2">
-              Create event
-            </Text>
-          </Button>
-        </Box>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Box direction="row" align="center" justify="space-between" mb={24}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
+        </TouchableOpacity>
+        <Text variant="bodyBold">{getResource('create_event_title')}</Text>
+        <Box style={styles.placeholder} />
       </Box>
-    </List>
+
+      <Box gap={8} mb={20}>
+        <Text variant="body2" color="textSecondary">{getResource('create_event_name_label')}</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Urban Clash 2026"
+          placeholderTextColor={Colors.text.secondary}
+        />
+      </Box>
+
+      <Box gap={8} mb={8}>
+        <Text variant="body2" color="textSecondary">{getResource('create_event_category_label')}</Text>
+        <TextInput
+          style={styles.input}
+          value={categoryTitle}
+          onChangeText={setCategoryTitle}
+          placeholder="Hip-Hop 1x1"
+          placeholderTextColor={Colors.text.secondary}
+        />
+      </Box>
+
+      <CardSelect
+        label={getResource('create_event_format_label')}
+        value={format}
+        onChange={(v) => setFormat(v as BattleFormat)}
+        options={[
+          { label: 'TOP 8', value: 'top8' },
+          { label: 'TOP 16', value: 'top16' },
+          { label: 'TOP 32', value: 'top32' },
+        ]}
+      />
+
+      <CardSelect
+        label={getResource('create_event_judges_label')}
+        value={judgesCount}
+        onChange={setJudgesCount}
+        options={[
+          { label: '3', value: '3' },
+          { label: '5', value: '5' },
+          { label: '7', value: '7' },
+        ]}
+      />
+
+      <Box mt={32} mb={32}>
+        <RangeSlider label="QUALITY SCORE RANGE" />
+      </Box>
+
+      <Button disabled={!canSubmit} onPress={handleSubmit}>
+        {getResource('create_event_submit')}
+      </Button>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+  },
+  content: {
+    paddingTop: HEADER_HEIGHT + 24,
+    paddingBottom: FOOTER_HEIGHT + 24,
+    paddingHorizontal: 24,
+  },
+  placeholder: {
+    width: 24,
+    height: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    color: Colors.text.primary,
+    fontSize: 14,
+    backgroundColor: Colors.dark.backgroundLight,
+  },
+});

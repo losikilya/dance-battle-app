@@ -5,6 +5,7 @@ import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
 import { DancerCard } from './DancerCard';
 import { JudgeVerdictRow } from './JudgeVerdictRow';
 
@@ -12,6 +13,7 @@ export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
   const battles = useDemoBattleStore(s => s.battles);
+  const broadcastState = useJudgingServerStore(s => s.broadcastState);
   const votes = useDemoBattleStore(s => s.getVotesForBattle(battleId ?? ''));
   const judges = useDemoBattleStore(s => s.judges);
   const participants = useDemoBattleStore(s => s.participants);
@@ -92,7 +94,7 @@ export const BattleResultScreen: React.FC = () => {
             {getResource('result_host_actions_title')}
           </Text>
         </Box>
-        <Button onPress={() => { Alert.alert('Broadcasting...'); }}>
+        <Button onPress={() => { broadcastState(); Alert.alert('Broadcasted to all clients.'); }}>
           {getResource('result_broadcast')}
         </Button>
         <Button variant="outlined" color="secondary" onPress={() => router.back()}>

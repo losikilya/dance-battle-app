@@ -4,11 +4,15 @@ export type ParticipantStatus =
   | 'eliminated'
   | 'winner';
 
+export type CheckInStatus = 'present' | 'absent';
+
 export type Participant = {
   id: string;
   number: number;
   name: string;
   crew?: string;
   city?: string;
+  photoUri?: string;
+  checkIn: CheckInStatus;
   status: ParticipantStatus;
 };

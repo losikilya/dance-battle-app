@@ -17,102 +17,23 @@ export function createDemoEvent(): DanceEvent {
 
 export function createDemoParticipants(): Participant[] {
   return [
-    {
-      id: 'participant_1',
-      number: 1,
-      name: 'Max Flow',
-      crew: 'Street Unit',
-      city: 'Warsaw',
-      status: 'registered',
-    },
-    {
-      id: 'participant_2',
-      number: 2,
-      name: 'Lina Wave',
-      crew: 'Wave Lab',
-      city: 'Krakow',
-      status: 'registered',
-    },
-    {
-      id: 'participant_3',
-      number: 3,
-      name: 'D-Knight',
-      crew: 'Night Crew',
-      city: 'Gdansk',
-      status: 'registered',
-    },
-    {
-      id: 'participant_4',
-      number: 4,
-      name: 'Mira Step',
-      crew: 'Step House',
-      city: 'Poznan',
-      status: 'registered',
-    },
-    {
-      id: 'participant_5',
-      number: 5,
-      name: 'Alex Pop',
-      crew: 'Pop District',
-      city: 'Wroclaw',
-      status: 'registered',
-    },
-    {
-      id: 'participant_6',
-      number: 6,
-      name: 'Noa Flex',
-      crew: 'Flex Zone',
-      city: 'Lodz',
-      status: 'registered',
-    },
-    {
-      id: 'participant_7',
-      number: 7,
-      name: 'Vito Spin',
-      crew: 'Spin Masters',
-      city: 'Katowice',
-      status: 'registered',
-    },
-    {
-      id: 'participant_8',
-      number: 8,
-      name: 'Zara Beat',
-      crew: 'Beat Club',
-      city: 'Warsaw',
-      status: 'registered',
-    },
-    {
-      id: 'participant_9',
-      number: 9,
-      name: 'Kai Groove',
-      crew: 'Groove Point',
-      city: 'Lublin',
-      status: 'registered',
-    },
-    {
-      id: 'participant_10',
-      number: 10,
-      name: 'Tina Lock',
-      crew: 'Lockers',
-      city: 'Sopot',
-      status: 'registered',
-    },
+    { id: 'participant_1', number: 1, name: 'Max Flow', crew: 'Street Unit', city: 'Warsaw', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_2', number: 2, name: 'Lina Wave', crew: 'Wave Lab', city: 'Krakow', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_3', number: 3, name: 'D-Knight', crew: 'Night Crew', city: 'Gdansk', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_4', number: 4, name: 'Mira Step', crew: 'Step House', city: 'Poznan', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_5', number: 5, name: 'Alex Pop', crew: 'Pop District', city: 'Wroclaw', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_6', number: 6, name: 'Noa Flex', crew: 'Flex Zone', city: 'Lodz', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_7', number: 7, name: 'Vito Spin', crew: 'Spin Masters', city: 'Katowice', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_8', number: 8, name: 'Zara Beat', crew: 'Beat Club', city: 'Warsaw', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_9', number: 9, name: 'Kai Groove', crew: 'Groove Point', city: 'Lublin', checkIn: 'absent', status: 'registered' },
+    { id: 'participant_10', number: 10, name: 'Tina Lock', crew: 'Lockers', city: 'Sopot', checkIn: 'absent', status: 'registered' },
   ];
 }
 
 export function createDemoJudges(): Judge[] {
   return [
-    {
-      id: 'judge_1',
-      name: 'Judge Alex',
-    },
-    {
-      id: 'judge_2',
-      name: 'Judge Maria',
-    },
-    {
-      id: 'judge_3',
-      name: 'Judge Ken',
-    },
+    { id: 'judge_1', name: 'Judge Alex', role: 'head' },
+    { id: 'judge_2', name: 'Judge Maria', role: 'standard' },
+    { id: 'judge_3', name: 'Judge Ken', role: 'standard' },
   ];
 }

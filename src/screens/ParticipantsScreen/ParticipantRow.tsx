@@ -1,16 +1,20 @@
-import { StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Text } from '@components';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { Participant } from '@domain/participant/types';
+import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
 type ParticipantRowProps = {
   participant: Participant;
 };
 
 export const ParticipantRow: React.FC<ParticipantRowProps> = ({ participant }) => {
-  const isPresent = participant.status !== 'eliminated';
+  const toggleParticipantCheckIn = useDemoBattleStore(s => s.toggleParticipantCheckIn);
+  const removeParticipant = useDemoBattleStore(s => s.removeParticipant);
+
+  const isPresent = participant.checkIn === 'present';
   const numberLabel = `#${String(participant.number).padStart(2, '0')}`;
 
   return (
@@ -27,22 +31,16 @@ export const ParticipantRow: React.FC<ParticipantRowProps> = ({ participant }) =
           <Text variant="body2" color="textSecondary" numberOfLines={1}>{participant.city}</Text>
         )}
       </Box>
-      <Box style={isPresent ? { ...styles.statusChip, ...styles.present } : { ...styles.statusChip, ...styles.absent }} px={8} py={4} mr={8}>
-        <Text variant="body2" color={isPresent ? 'dark' : 'textSecondary'}>
-          {isPresent ? getResource('participants_status_present') : getResource('participants_status_absent')}
-        </Text>
-      </Box>
-      <Box direction="row" gap={8}>
-        <TouchableOpacity onPress={() => { Alert.alert('Coming soon'); }}>
-          <Ionicons name="ban-outline" size={18} color={Colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => { Alert.alert('Coming soon'); }}>
-          <Ionicons name="create-outline" size={18} color={Colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => { Alert.alert('Coming soon'); }}>
-          <Ionicons name="trash-outline" size={18} color={Colors.text.secondary} />
-        </TouchableOpacity>
-      </Box>
+      <TouchableOpacity onPress={() => toggleParticipantCheckIn(participant.id)}>
+        <Box style={isPresent ? { ...styles.statusChip, ...styles.present } : { ...styles.statusChip, ...styles.absent }} px={8} py={4} mr={8}>
+          <Text variant="body2" color={isPresent ? 'dark' : 'textSecondary'}>
+            {isPresent ? getResource('participants_status_present') : getResource('participants_status_absent')}
+          </Text>
+        </Box>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => removeParticipant(participant.id)}>
+        <Ionicons name="trash-outline" size={18} color={Colors.text.secondary} />
+      </TouchableOpacity>
     </Box>
   );
 };

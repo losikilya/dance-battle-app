@@ -2,6 +2,14 @@ import { BattleAppState } from "./appState";
 import { AppEvent } from "./appEvent";
 import { createInitialBattleState } from "./createInitialBattleState";
 
+function logEntry(message: string): string {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `[${hh}:${mm}:${ss}] ${message}`;
+}
+
 export function applyEvent(
   state: BattleAppState,
   event: AppEvent,
@@ -9,6 +17,15 @@ export function applyEvent(
   switch (event.type) {
     case "event.reset": {
       return createInitialBattleState();
+    }
+
+    case "event.created": {
+      return {
+        ...createInitialBattleState(),
+        event: event.payload.event,
+        judges: event.payload.judges,
+        systemLogs: [logEntry(`Event "${event.payload.event.title}" initialized.`)],
+      };
     }
 
     case "qualification.started": {
@@ -24,6 +41,7 @@ export function applyEvent(
         activeBattleId: null,
         currentQualificationParticipantIndex:
           event.payload.currentParticipantIndex,
+        systemLogs: [...state.systemLogs, logEntry('Qualification started.')],
       };
     }
 
@@ -63,6 +81,7 @@ export function applyEvent(
           ...state.event,
           status: "qualification_finished",
         },
+        systemLogs: [...state.systemLogs, logEntry('Qualification finished.')],
       };
     }
 
@@ -76,6 +95,7 @@ export function applyEvent(
         battles: event.payload.battles,
         votes: [],
         activeBattleId: null,
+        systemLogs: [...state.systemLogs, logEntry('Top 8 bracket generated.')],
       };
     }
 
@@ -91,6 +111,7 @@ export function applyEvent(
               }
             : battle,
         ),
+        systemLogs: [...state.systemLogs, logEntry(`Battle ${event.payload.battleId} started.`)],
       };
     }
 
@@ -155,6 +176,7 @@ export function applyEvent(
               }
             : battle,
         ),
+        systemLogs: [...state.systemLogs, logEntry(`Battle finished. Winner: ${event.payload.winnerId}.`)],
       };
     }
 
@@ -170,6 +192,33 @@ export function applyEvent(
       return {
         ...state,
         currentQualificationParticipantIndex: event.payload.participantIndex,
+      };
+    }
+
+    case "participant.added": {
+      return {
+        ...state,
+        participants: [...state.participants, event.payload.participant],
+        systemLogs: [...state.systemLogs, logEntry(`Participant "${event.payload.participant.name}" added.`)],
+      };
+    }
+
+    case "participant.removed": {
+      return {
+        ...state,
+        participants: state.participants.filter(p => p.id !== event.payload.participantId),
+        systemLogs: [...state.systemLogs, logEntry(`Participant ${event.payload.participantId} removed.`)],
+      };
+    }
+
+    case "participant.checkInToggled": {
+      return {
+        ...state,
+        participants: state.participants.map(p =>
+          p.id === event.payload.participantId
+            ? { ...p, checkIn: event.payload.checkIn }
+            : p,
+        ),
       };
     }
 

@@ -28,7 +28,9 @@ export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({ judge, vote, p
       </Box>
       <Box flex={1} gap={2}>
         <Text variant="bodyBold">{judge.name}</Text>
-        <Text variant="body2" color="textSecondary">{getResource('result_judge_role_standard')}</Text>
+        <Text variant="body2" color="textSecondary">
+          {judge.role === 'head' ? getResource('result_judge_role_head') : getResource('result_judge_role_standard')}
+        </Text>
       </Box>
       {hasVote && (
         <Box

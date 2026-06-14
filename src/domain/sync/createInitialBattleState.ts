@@ -15,5 +15,6 @@ export function createInitialBattleState(): BattleAppState {
     votes: [],
     currentQualificationParticipantIndex: 0,
     activeBattleId: null,
+    systemLogs: [],
   };
 }

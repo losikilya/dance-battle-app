@@ -7,7 +7,8 @@ export type CommandErrorCode =
   | 'invalid_winner'
   | 'not_enough_data'
   | 'already_finished'
-  | 'action_not_allowed';
+  | 'action_not_allowed'
+  | 'invalid_number';
 
 export type CommandError = {
   code: CommandErrorCode;

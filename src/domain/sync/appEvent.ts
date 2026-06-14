@@ -1,4 +1,7 @@
 import { Battle, BattleVote } from '../battle/types';
+import { DanceEvent } from '../event/types';
+import { Judge } from '../judge/types';
+import { Participant, CheckInStatus } from '../participant/types';
 import { QualificationScore } from '../qualification/types';
 
 export type AppEventMeta = {
@@ -69,6 +72,31 @@ export type QualificationParticipantChangedEvent = AppEventMeta & {
   };
 };
 
+export type EventCreatedEvent = AppEventMeta & {
+  type: 'event.created';
+  payload: {
+    event: DanceEvent;
+    judges: Judge[];
+  };
+};
+
+export type ParticipantAddedEvent = AppEventMeta & {
+  type: 'participant.added';
+  payload: {
+    participant: Participant;
+  };
+};
+
+export type ParticipantRemovedEvent = AppEventMeta & {
+  type: 'participant.removed';
+  payload: { participantId: string };
+};
+
+export type ParticipantCheckInToggledEvent = AppEventMeta & {
+  type: 'participant.checkInToggled';
+  payload: { participantId: string; checkIn: CheckInStatus };
+};
+
 export type AppEvent =
   | QualificationStartedEvent
   | QualificationScoreSubmittedEvent
@@ -79,4 +107,8 @@ export type AppEvent =
   | BattleFinishedEvent
   | NextRoundGeneratedEvent
   | EventResetEvent
-  | QualificationParticipantChangedEvent;
+  | QualificationParticipantChangedEvent
+  | EventCreatedEvent
+  | ParticipantAddedEvent
+  | ParticipantRemovedEvent
+  | ParticipantCheckInToggledEvent;

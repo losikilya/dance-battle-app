@@ -59,9 +59,17 @@ type DemoBattleComputed = {
   canGenerateNextRound: () => boolean;
 };
 
+type AddParticipantParams = { name: string; number: number; crew?: string; city?: string };
+type CreateEventParams = { title: string; categoryTitle: string; format: import('@domain/event/types').BattleFormat; judgesCount: number };
+
 type DemoBattleActions = {
   resetDemo: () => void;
   clearLastCommandError: () => void;
+
+  createEvent: (params: CreateEventParams) => void;
+  addParticipant: (params: AddParticipantParams) => void;
+  removeParticipant: (participantId: string) => void;
+  toggleParticipantCheckIn: (participantId: string) => void;
 
   startQualification: () => void;
   submitQualificationScore: (params: SubmitQualificationScoreParams) => void;
@@ -341,6 +349,22 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         eventLog: [resetEvent],
         lastCommandError: null,
       });
+    },
+
+    createEvent: ({ title, categoryTitle, format, judgesCount }) => {
+      executeCommand(createCommand('event.create', { title, categoryTitle, format, judgesCount }));
+    },
+
+    addParticipant: ({ name, number, crew, city }) => {
+      executeCommand(createCommand('participant.add', { name, number, crew, city }));
+    },
+
+    removeParticipant: (participantId) => {
+      executeCommand(createCommand('participant.remove', { participantId }));
+    },
+
+    toggleParticipantCheckIn: (participantId) => {
+      executeCommand(createCommand('participant.toggleCheckIn', { participantId }));
     },
 
     startQualification: () => {

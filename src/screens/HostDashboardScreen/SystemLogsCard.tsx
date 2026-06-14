@@ -2,23 +2,26 @@ import { StyleSheet } from 'react-native';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
+import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
-const DEMO_LOGS = [
-  '[00:00:01] System initialized. Event loaded.',
-  '[00:00:02] TCP server started on port 8080.',
-  '[00:00:03] Waiting for participants and judges.',
-];
+export const SystemLogsCard: React.FC = () => {
+  const systemLogs = useDemoBattleStore(s => s.systemLogs);
 
-export const SystemLogsCard: React.FC = () => (
-  <Box style={styles.card} p={20} gap={12}>
-    <Text variant="bodyBold">{getResource('dashboard_logs_title')}</Text>
-    <Box gap={6}>
-      {DEMO_LOGS.map((log, i) => (
-        <Text key={i} variant="body2" color="textSecondary">{log}</Text>
-      ))}
+  return (
+    <Box style={styles.card} p={20} gap={12}>
+      <Text variant="bodyBold">{getResource('dashboard_logs_title')}</Text>
+      <Box gap={6}>
+        {systemLogs.length === 0 ? (
+          <Text variant="body2" color="textSecondary">No events yet.</Text>
+        ) : (
+          [...systemLogs].reverse().map((log, i) => (
+            <Text key={i} variant="body2" color="textSecondary">{log}</Text>
+          ))
+        )}
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

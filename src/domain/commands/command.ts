@@ -59,6 +59,36 @@ export type ResetEventCommand = CommandMeta & {
   payload: Record<string, never>;
 };
 
+export type CreateEventCommand = CommandMeta & {
+  type: 'event.create';
+  payload: {
+    title: string;
+    categoryTitle: string;
+    format: import('../event/types').BattleFormat;
+    judgesCount: number;
+  };
+};
+
+export type AddParticipantCommand = CommandMeta & {
+  type: 'participant.add';
+  payload: {
+    name: string;
+    number: number;
+    crew?: string;
+    city?: string;
+  };
+};
+
+export type RemoveParticipantCommand = CommandMeta & {
+  type: 'participant.remove';
+  payload: { participantId: string };
+};
+
+export type ToggleParticipantCheckInCommand = CommandMeta & {
+  type: 'participant.toggleCheckIn';
+  payload: { participantId: string };
+};
+
 export type AppCommand =
   | StartQualificationCommand
   | SubmitQualificationScoreCommand
@@ -68,7 +98,11 @@ export type AppCommand =
   | StartBattleCommand
   | SubmitBattleVoteCommand
   | GenerateNextRoundCommand
-  | ResetEventCommand;
+  | ResetEventCommand
+  | CreateEventCommand
+  | AddParticipantCommand
+  | RemoveParticipantCommand
+  | ToggleParticipantCheckInCommand;
 
 /**
  * UI

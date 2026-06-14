@@ -27,6 +27,7 @@ type JudgingServerActions = {
   startServer: () => Promise<void>;
   stopServer: () => void;
   restartServer: () => Promise<void>;
+  broadcastState: () => void;
 };
 
 // Module-level refs — not serializable, intentionally outside Zustand state
@@ -54,14 +55,14 @@ export const useJudgingServerStore = create<JudgingServerState & JudgingServerAc
 
         const {
           event, participants, judges, scores, battles, votes,
-          currentQualificationParticipantIndex, activeBattleId,
+          currentQualificationParticipantIndex, activeBattleId, systemLogs,
         } = useDemoBattleStore.getState();
 
         sendToClient(deviceId, {
           type: 'state_sync',
           state: {
             event, participants, judges, scores, battles, votes,
-            currentQualificationParticipantIndex, activeBattleId,
+            currentQualificationParticipantIndex, activeBattleId, systemLogs,
           },
         });
         return;
@@ -163,6 +164,20 @@ export const useJudgingServerStore = create<JudgingServerState & JudgingServerAc
         tcpServer?.close();
         tcpServer = null;
         set({ status: 'idle', connectedClients: [] });
+      },
+
+      broadcastState: (): void => {
+        const {
+          event, participants, judges, scores, battles, votes,
+          currentQualificationParticipantIndex, activeBattleId, systemLogs,
+        } = useDemoBattleStore.getState();
+        const message: HostMessage = {
+          type: 'state_sync',
+          state: { event, participants, judges, scores, battles, votes, currentQualificationParticipantIndex, activeBattleId, systemLogs },
+        };
+        get().connectedClients
+          .filter(c => c.isOnline)
+          .forEach(c => sendToClient(c.deviceId, message));
       },
 
       restartServer: async (): Promise<void> => {

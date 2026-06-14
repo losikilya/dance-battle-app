@@ -14,6 +14,7 @@ export type BattleAppState = {
 
   currentQualificationParticipantIndex: number;
   activeBattleId: string | null;
+  systemLogs: string[];
 };
 /**
  * - сохранять в SQLite

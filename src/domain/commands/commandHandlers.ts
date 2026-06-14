@@ -12,6 +12,9 @@ import {
   CommandHandlerResult,
   commandSuccess,
 } from './commandResult';
+import { DanceEvent } from '../event/types';
+import { Judge, JudgeRole } from '../judge/types';
+import { CheckInStatus, Participant } from '../participant/types';
 
 export function handleCommand(
   state: BattleAppState,
@@ -44,6 +47,18 @@ export function handleCommand(
 
     case 'battle.generateNextRound':
       return handleGenerateNextRoundCommand(state);
+
+    case 'event.create':
+      return handleCreateEventCommand(state, command);
+
+    case 'participant.add':
+      return handleAddParticipantCommand(state, command);
+
+    case 'participant.remove':
+      return handleRemoveParticipantCommand(state, command);
+
+    case 'participant.toggleCheckIn':
+      return handleToggleParticipantCheckInCommand(state, command);
 
     default:
       return commandFailure('action_not_allowed', 'Unknown command');
@@ -413,6 +428,70 @@ function handleGenerateNextRoundCommand(
     'action_not_allowed',
     'Current round is not ready to generate next round',
   );
+}
+
+function handleCreateEventCommand(
+  _state: BattleAppState,
+  command: Extract<AppCommand, { type: 'event.create' }>,
+): CommandHandlerResult {
+  const { title, categoryTitle, format, judgesCount } = command.payload;
+  const newEvent: DanceEvent = {
+    id: createId('event'),
+    title,
+    categoryTitle,
+    format,
+    judgesCount,
+    status: 'draft',
+    createdAt: new Date().toISOString(),
+  };
+  const judges: Judge[] = Array.from({ length: judgesCount }, (_, i) => ({
+    id: createId('judge'),
+    name: `Judge ${i + 1}`,
+    role: (i === 0 ? 'head' : 'standard') as JudgeRole,
+  }));
+  return commandSuccess([createAppEvent('event.created', { event: newEvent, judges })]);
+}
+
+function handleAddParticipantCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'participant.add' }>,
+): CommandHandlerResult {
+  const { name, number, crew, city } = command.payload;
+  if (state.participants.some(p => p.number === number)) {
+    return commandFailure('invalid_number', 'Participant number already exists');
+  }
+  const participant: Participant = {
+    id: createId('participant'),
+    number,
+    name,
+    crew,
+    city,
+    checkIn: 'absent',
+    status: 'registered',
+  };
+  return commandSuccess([createAppEvent('participant.added', { participant })]);
+}
+
+function handleRemoveParticipantCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'participant.remove' }>,
+): CommandHandlerResult {
+  const { participantId } = command.payload;
+  if (!state.participants.find(p => p.id === participantId)) {
+    return commandFailure('not_found', 'Participant not found');
+  }
+  return commandSuccess([createAppEvent('participant.removed', { participantId })]);
+}
+
+function handleToggleParticipantCheckInCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'participant.toggleCheckIn' }>,
+): CommandHandlerResult {
+  const { participantId } = command.payload;
+  const participant = state.participants.find(p => p.id === participantId);
+  if (!participant) return commandFailure('not_found', 'Participant not found');
+  const checkIn: CheckInStatus = participant.checkIn === 'present' ? 'absent' : 'present';
+  return commandSuccess([createAppEvent('participant.checkInToggled', { participantId, checkIn })]);
 }
 
 function applyVoteToVotesList(
