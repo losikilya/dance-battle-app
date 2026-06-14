@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import TcpSocket, { Socket as TcpSocketSocket } from 'react-native-tcp-socket';
 import * as Network from 'expo-network';
 import { createId } from '../../shared/lib/createId';
-import { ClientMessage, ClientRole, HostMessage } from '../../domain/sync/wsProtocol';
+import { ClientMessage, ClientRole, HostMessage } from '@domain/sync/wsProtocol';
 import { useDemoBattleStore } from '../demoBattle/useDemoBattleStore';
 
 export type ConnectedClient = {

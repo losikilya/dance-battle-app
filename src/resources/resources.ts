@@ -18,6 +18,20 @@ export const resources = {
   role_mc: "MASTER OF CEREMONY",
   role_spectator: "SPECTATOR",
   role_spectators: "Spectators",
+  role_selection_app_name: "BATTLEFLOW",
+  role_selection_title: "SELECT YOUR ROLE",
+  role_selection_subtitle:
+    "Choose your interface based on your event duties. You can switch roles at any time from the Control Center.",
+  role_selection_pro_title: "⚡ PRO PERFORMANCE",
+  role_selection_pro_body:
+    "BattleFlow runs on a low-latency local network architecture, ensuring zero lag for judges and instant score distribution even without stable internet.",
+  role_selection_pro_link: "How local connection works →",
+  role_selection_confirm: "CONFIRM ROLE",
+  role_selection_privacy: "PRIVACY POLICY",
+  role_selection_docs: "TECHNICAL DOCS",
+  role_selection_terms: "TERMS OF SERVICE",
+  role_selection_tagline: "DESIGNED FOR THE UNDERGROUND ELITE",
+  role_selection_status_online: "SYSTEMS ONLINE. LOCAL MODE",
   screen_not_exist: "This screen doesn't exist.",
 };
 

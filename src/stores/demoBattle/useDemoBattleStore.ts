@@ -1,20 +1,20 @@
 import { create } from "zustand";
 
-import { Participant } from "../../domain/participant/types";
+import { Participant } from "@domain/participant/types";
 import {
   QualificationScore,
   RankedParticipant,
-} from "../../domain/qualification/types";
-import { Battle, BattleVote } from "../../domain/battle/types";
-import { calculateRanking } from "../../domain/qualification/calculateRanking";
-import { BattleAppState } from "../../domain/sync/appState";
-import { AppEvent } from "../../domain/sync/appEvent";
-import { applyEvent } from "../../domain/sync/applyEvent";
-import { createInitialBattleState } from "../../domain/sync/createInitialBattleState";
-import { createCommand } from "../../domain/commands/createCommand";
-import { handleCommand } from "../../domain/commands/commandHandlers";
-import { CommandError } from "../../domain/commands/commandResult";
-import { AppCommand } from "../../domain/commands/command";
+} from "@domain/qualification/types";
+import { Battle, BattleVote } from "@domain/battle/types";
+import { calculateRanking } from "@domain/qualification/calculateRanking";
+import { BattleAppState } from "@domain/sync/appState";
+import { AppEvent } from "@domain/sync/appEvent";
+import { applyEvent } from "@domain/sync/applyEvent";
+import { createInitialBattleState } from "@domain/sync/createInitialBattleState";
+import { createCommand } from "@domain/commands/createCommand";
+import { handleCommand } from "@domain/commands/commandHandlers";
+import { CommandError } from "@domain/commands/commandResult";
+import { AppCommand } from "@domain/commands/command";
 
 type SubmitQualificationScoreParams = {
   participantId: string;

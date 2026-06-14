@@ -6,7 +6,7 @@ export default function ProfileLayout(): React.JSX.Element {
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />
-      <Stack.Screen name="judge/index" options={{ headerShown: false }} />
+      <Stack.Screen name="judge" options={{ headerShown: false }} />
     </Stack>
   )
 }

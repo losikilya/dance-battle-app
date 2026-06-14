@@ -7,7 +7,7 @@ const token = "token";
 
 export default function Login(): React.JSX.Element {
   if (token) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(auth)/role-selection" />;
   }
 
   return (

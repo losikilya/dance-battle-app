@@ -7,7 +7,9 @@
       "@screens/*": ["screens/*"],
       "@components": ["components"],
       "@constants/*": ["constants/*"],
-      "@resources": ["resources"]
+      "@resources": ["resources"],
+      "@stores/*": ["stores/*"],
+      "@domain/*": ["domain/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]

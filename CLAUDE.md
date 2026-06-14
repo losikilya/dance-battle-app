@@ -173,7 +173,43 @@ export { MyComponent } from './MyComponent'
 @components  → src/components
 @constants/* → src/constants/*
 @resources   → src/resources
+@stores/*    → src/stores/*
+@domain/*    → src/domain/*
 ```
+
+Path aliases are resolved by Metro automatically (Expo SDK 50+) — no `babel.config.js` needed.
+
+## Route files (src/app/**)
+
+Route files do **not** need `import React` — Expo's tsconfig provides the `React` namespace globally. All routes use `React.JSX.Element` return type without importing React.
+
+## Component import rules
+
+Components inside `src/components/` must import siblings via **relative paths**, never via `@components` barrel:
+
+```ts
+// ✅ correct
+import { Text } from '../Text';
+// ❌ wrong — creates require cycle logged at runtime
+import { Text } from '@components';
+```
+
+## Strings and colors
+
+- All user-facing strings → `src/resources/resources.ts`, accessed via `getResource(key)` from `@resources`. Keys sorted alphabetically.
+- Resource key naming: `<screen_name>_<key>` prefix per screen (e.g. `role_selection_title`, `judging_subtitle`).
+- All color values → `src/constants/Colors.ts`. No inline hex/rgba anywhere. Sections: `Colors.border`, `Colors.role`, `Colors.warning` added in 2026-06-14 session.
+
+## Native modules (Dev Build required)
+
+`react-native-tcp-socket` requires a native Dev Build — Expo Go will crash.
+- Simulator: `npx expo run:ios`
+- Physical device: `npx expo run:ios --device`
+- Rebuild after adding packages: `npx expo prebuild --clean && npx expo run:ios`
+
+## Zustand stores with native refs
+
+Non-serializable values (native server handles, socket Maps) live at **module level**, outside Zustand state. Hot reload (Fast Refresh) resets these refs while native resources keep running — full reload (Cmd+R) needed after editing such stores.
 
 ## Event status flow (DanceEvent.status)
 
@@ -200,6 +236,9 @@ draft → qualification → qualification_finished → battle → finished
 | Date | Change |
 |------|--------|
 | 2026-06-14 | Created CLAUDE.md from full project analysis (structure, architecture, code style, conventions) |
+| 2026-06-14 | Added: component import rules, resource/color patterns, native build notes, Zustand module-level ref pattern |
+| 2026-06-14 | Added: resource key naming convention, missing path alias note, route file React import rule |
+| 2026-06-14 | Added `@stores/*` and `@domain/*` path aliases to tsconfig; migrated all relative `../../stores/` and `../../domain/` imports |
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph

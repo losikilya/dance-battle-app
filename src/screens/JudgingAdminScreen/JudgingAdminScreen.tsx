@@ -9,8 +9,8 @@ import { getResource } from '@resources';
 import {
   ConnectedClient,
   useJudgingServerStore,
-} from '../../stores/judgingServer/useJudgingServerStore';
-import { useDemoBattleStore } from '../../stores/demoBattle/useDemoBattleStore';
+} from '@stores/judgingServer/useJudgingServerStore';
+import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
 type InfoCardProps = {
   label: string;
