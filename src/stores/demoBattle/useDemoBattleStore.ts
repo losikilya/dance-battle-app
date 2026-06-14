@@ -15,6 +15,11 @@ import { createCommand } from "@domain/commands/createCommand";
 import { handleCommand } from "@domain/commands/commandHandlers";
 import { CommandError } from "@domain/commands/commandResult";
 import { AppCommand } from "@domain/commands/command";
+import {
+  clearAppEvents,
+  loadAppEvents,
+  saveAppEvents,
+} from "../../infrastructure/storage/appEventRepository";
 
 type SubmitQualificationScoreParams = {
   participantId: string;
@@ -31,6 +36,10 @@ type SubmitBattleVoteParams = {
 type DemoBattleState = BattleAppState & {
   eventLog: AppEvent[];
   lastCommandError: CommandError | null;
+
+  isHydrated: boolean;
+  isHydrating: boolean;
+  storageError: string | null;
 };
 
 type DemoBattleComputed = {
@@ -59,11 +68,23 @@ type DemoBattleComputed = {
   canGenerateNextRound: () => boolean;
 };
 
-type AddParticipantParams = { name: string; number: number; crew?: string; city?: string };
-type CreateEventParams = { title: string; categoryTitle: string; format: import('@domain/event/types').BattleFormat; judgesCount: number };
+type AddParticipantParams = {
+  name: string;
+  number: number;
+  crew?: string;
+  city?: string;
+};
+type CreateEventParams = {
+  title: string;
+  categoryTitle: string;
+  format: import("@domain/event/types").BattleFormat;
+  judgesCount: number;
+};
 
 type DemoBattleActions = {
-  resetDemo: () => void;
+  hydrateFromStorage: () => Promise<void>;
+
+  resetDemo: () => Promise<void>;
   clearLastCommandError: () => void;
 
   createEvent: (params: CreateEventParams) => void;
@@ -71,47 +92,72 @@ type DemoBattleActions = {
   removeParticipant: (participantId: string) => void;
   toggleParticipantCheckIn: (participantId: string) => void;
 
-  startQualification: () => void;
-  submitQualificationScore: (params: SubmitQualificationScoreParams) => void;
-  goToNextQualificationParticipant: () => void;
-  finishQualification: () => void;
+  startQualification: () => Promise<void>;
+  submitQualificationScore: (
+    params: SubmitQualificationScoreParams,
+  ) => Promise<void>;
+  goToNextQualificationParticipant: () => Promise<void>;
+  finishQualification: () => Promise<void>;
 
-  fillRandomQualificationScores: () => void;
-  generateTop8: () => void;
+  fillRandomQualificationScores: () => Promise<void>;
+  generateTop8: () => Promise<void>;
 
-  startBattle: (battleId: string) => void;
-  submitBattleVote: (params: SubmitBattleVoteParams) => void;
+  startBattle: (battleId: string) => Promise<void>;
+  submitBattleVote: (params: SubmitBattleVoteParams) => Promise<void>;
 
-  submitRandomVotesForBattle: (battleId: string) => void;
-  generateNextRound: () => void;
+  submitRandomVotesForBattle: (battleId: string) => Promise<void>;
+  generateNextRound: () => Promise<void>;
 
   replayEventLog: () => void;
 };
 
 type DemoBattleStore = DemoBattleState & DemoBattleComputed & DemoBattleActions;
 
+function pickBattleAppState(state: BattleAppState): BattleAppState {
+  return {
+    event: state.event,
+    participants: state.participants,
+    judges: state.judges,
+    scores: state.scores,
+    battles: state.battles,
+    votes: state.votes,
+    currentQualificationParticipantIndex:
+      state.currentQualificationParticipantIndex,
+    activeBattleId: state.activeBattleId,
+    systemLogs: state.systemLogs,
+  };
+}
+
 function createInitialStoreState(): DemoBattleState {
   return {
     ...createInitialBattleState(),
     eventLog: [],
     lastCommandError: null,
+
+    isHydrated: false,
+    isHydrating: false,
+    storageError: null,
   };
 }
 
 export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
-  const applyAppEvent = (event: AppEvent) => {
+  const applyEventsToStore = (events: AppEvent[]) => {
     set((state) => {
-      const nextBattleState = applyEvent(state, event);
+      const nextBattleState = events.reduce(
+        (currentState, event) => applyEvent(currentState, event),
+        pickBattleAppState(state),
+      );
 
       return {
         ...nextBattleState,
-        eventLog: [...state.eventLog, event],
+        eventLog: [...state.eventLog, ...events],
         lastCommandError: null,
+        storageError: null,
       };
     });
   };
 
-  const executeCommand = (command: AppCommand) => {
+  const executeCommand = async (command: AppCommand) => {
     const result = handleCommand(get(), command);
 
     if (result.error) {
@@ -122,7 +168,17 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       return;
     }
 
-    result.events.forEach(applyAppEvent);
+    try {
+      await saveAppEvents(result.events);
+      applyEventsToStore(result.events);
+    } catch (error) {
+      set({
+        storageError:
+          error instanceof Error
+            ? error.message
+            : "Failed to save events to storage",
+      });
+    }
   };
 
   return {
@@ -334,7 +390,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       });
     },
 
-    resetDemo: () => {
+    resetDemo: async () => {
       const command = createCommand("event.reset", {});
       const result = handleCommand(get(), command);
 
@@ -344,35 +400,63 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return;
       }
 
-      set({
-        ...applyEvent(get(), resetEvent),
-        eventLog: [resetEvent],
-        lastCommandError: null,
-      });
+      try {
+        await clearAppEvents();
+        await saveAppEvents([resetEvent]);
+
+        set({
+          ...applyEvent(get(), resetEvent),
+          eventLog: [resetEvent],
+          lastCommandError: null,
+          storageError: null,
+          isHydrated: true,
+          isHydrating: false,
+        });
+      } catch (error) {
+        set({
+          storageError:
+            error instanceof Error
+              ? error.message
+              : "Failed to reset local storage",
+        });
+      }
     },
 
-    createEvent: ({ title, categoryTitle, format, judgesCount }) => {
-      executeCommand(createCommand('event.create', { title, categoryTitle, format, judgesCount }));
+    createEvent: async ({ title, categoryTitle, format, judgesCount }) => {
+      await executeCommand(
+        createCommand("event.create", {
+          title,
+          categoryTitle,
+          format,
+          judgesCount,
+        }),
+      );
     },
 
-    addParticipant: ({ name, number, crew, city }) => {
-      executeCommand(createCommand('participant.add', { name, number, crew, city }));
+    addParticipant: async ({ name, number, crew, city }) => {
+      await executeCommand(
+        createCommand("participant.add", { name, number, crew, city }),
+      );
     },
 
-    removeParticipant: (participantId) => {
-      executeCommand(createCommand('participant.remove', { participantId }));
+    removeParticipant: async (participantId) => {
+      await executeCommand(
+        createCommand("participant.remove", { participantId }),
+      );
     },
 
-    toggleParticipantCheckIn: (participantId) => {
-      executeCommand(createCommand('participant.toggleCheckIn', { participantId }));
+    toggleParticipantCheckIn: async (participantId) => {
+      await executeCommand(
+        createCommand("participant.toggleCheckIn", { participantId }),
+      );
     },
 
-    startQualification: () => {
-      executeCommand(createCommand("qualification.start", {}));
+    startQualification: async () => {
+      await executeCommand(createCommand("qualification.start", {}));
     },
 
-    submitQualificationScore: ({ participantId, judgeId, score }) => {
-      executeCommand(
+    submitQualificationScore: async ({ participantId, judgeId, score }) => {
+      await executeCommand(
         createCommand("qualification.submitScore", {
           participantId,
           judgeId,
@@ -381,28 +465,30 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
-    goToNextQualificationParticipant: () => {
-      executeCommand(createCommand("qualification.goToNextParticipant", {}));
+    goToNextQualificationParticipant: async () => {
+      await executeCommand(
+        createCommand("qualification.goToNextParticipant", {}),
+      );
     },
 
-    finishQualification: () => {
-      executeCommand(createCommand("qualification.finish", {}));
+    finishQualification: async () => {
+      await executeCommand(createCommand("qualification.finish", {}));
     },
 
-    generateTop8: () => {
-      executeCommand(createCommand("bracket.generateTop8", {}));
+    generateTop8: async () => {
+      await executeCommand(createCommand("bracket.generateTop8", {}));
     },
 
-    startBattle: (battleId) => {
-      executeCommand(
+    startBattle: async (battleId) => {
+      await executeCommand(
         createCommand("battle.start", {
           battleId,
         }),
       );
     },
 
-    submitBattleVote: ({ battleId, judgeId, winnerId }) => {
-      executeCommand(
+    submitBattleVote: async ({ battleId, judgeId, winnerId }) => {
+      await executeCommand(
         createCommand("battle.submitVote", {
           battleId,
           judgeId,
@@ -411,8 +497,8 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
-    generateNextRound: () => {
-      executeCommand(createCommand("battle.generateNextRound", {}));
+    generateNextRound: async () => {
+      await executeCommand(createCommand("battle.generateNextRound", {}));
     },
 
     replayEventLog: () => {
@@ -430,7 +516,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       });
     },
 
-    submitRandomVotesForBattle: (battleId) => {
+    submitRandomVotesForBattle: async (battleId) => {
       const battle = get().battles.find((item) => item.id === battleId);
 
       if (!battle) {
@@ -438,7 +524,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       }
 
       if (battle.status === "pending") {
-        executeCommand(
+        await executeCommand(
           createCommand("battle.start", {
             battleId,
           }),
@@ -451,46 +537,81 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return;
       }
 
-      get().judges.forEach((judge) => {
+      for (const judge of get().judges) {
         const winnerId =
           Math.random() > 0.5
             ? activeBattle.participantAId
             : activeBattle.participantBId;
 
-        executeCommand(
+        await executeCommand(
           createCommand("battle.submitVote", {
             battleId,
             judgeId: judge.id,
             winnerId,
           }),
         );
-      });
+      }
     },
 
-    fillRandomQualificationScores: () => {
+    fillRandomQualificationScores: async () => {
       if (get().event.status === "draft") {
-        executeCommand(createCommand("qualification.start", {}));
+        await executeCommand(createCommand("qualification.start", {}));
       }
 
       const { participants, judges } = get();
 
-      participants.forEach((participant) => {
-        judges.forEach((judge) => {
-          executeCommand(
+      for (const participant of participants) {
+        for (const judge of judges) {
+          await executeCommand(
             createCommand("qualification.submitScore", {
               participantId: participant.id,
               judgeId: judge.id,
               score: Math.floor(Math.random() * 4) + 7,
             }),
           );
-        });
-      });
+        }
 
-      while (get().canGoToNextQualificationParticipant()) {
-        executeCommand(createCommand("qualification.goToNextParticipant", {}));
+        if (get().canGoToNextQualificationParticipant()) {
+          await executeCommand(
+            createCommand("qualification.goToNextParticipant", {}),
+          );
+        }
       }
 
-      executeCommand(createCommand("qualification.finish", {}));
+      await executeCommand(createCommand("qualification.finish", {}));
+    },
+    hydrateFromStorage: async () => {
+      set({
+        isHydrating: true,
+        storageError: null,
+      });
+
+      try {
+        const events = await loadAppEvents();
+
+        const restoredBattleState = events.reduce<BattleAppState>(
+          (state, event) => applyEvent(state, event),
+          createInitialBattleState(),
+        );
+
+        set({
+          ...restoredBattleState,
+          eventLog: events,
+          isHydrated: true,
+          isHydrating: false,
+          storageError: null,
+          lastCommandError: null,
+        });
+      } catch (error) {
+        set({
+          isHydrated: true,
+          isHydrating: false,
+          storageError:
+            error instanceof Error
+              ? error.message
+              : "Failed to hydrate battle state",
+        });
+      }
     },
   };
 });

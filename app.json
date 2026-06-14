@@ -44,7 +44,8 @@
             "./assets/fonts/HauoraExtraBold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-sqlite"
     ]
   }
 }

@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-gesture-handler";
+import { AppBootstrap } from "./AppBootstrap";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -14,15 +15,20 @@ export const unstable_settings = {
 
 const RootWithQuery: React.FC = () => {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/role-selection" options={{ headerShown: false }} />
-        <Stack.Screen name="participants" options={{ headerShown: false }} />
-        <Stack.Screen name="create-event" options={{ headerShown: false }} />
-      </Stack>
-    </GestureHandlerRootView>
+    <AppBootstrap>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="(auth)/role-selection"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="participants" options={{ headerShown: false }} />
+          <Stack.Screen name="create-event" options={{ headerShown: false }} />
+        </Stack>
+      </GestureHandlerRootView>
+    </AppBootstrap>
   );
 };
 
