@@ -1,0 +1,1 @@
+export { BattleResultScreen } from './BattleResultScreen';

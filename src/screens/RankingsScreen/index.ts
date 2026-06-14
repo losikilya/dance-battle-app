@@ -1,0 +1,1 @@
+export { RankingsScreen } from './RankingsScreen';

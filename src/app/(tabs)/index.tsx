@@ -1,10 +1,5 @@
-import { Box } from "@components";
-import { DemoBattleScreen } from "screens/DemoBattleScreen/DemoBattleScreen";
+import { HostDashboardScreen } from '@screens/HostDashboardScreen';
 
-export default function HomeScreen(): React.JSX.Element {
-  return (
-    <Box fullHeight fullWidth pt={48} pb={100}>
-      <DemoBattleScreen />
-    </Box>
-  );
+export default function DashboardTab(): React.JSX.Element {
+  return <HostDashboardScreen />;
 }

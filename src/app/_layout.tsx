@@ -19,6 +19,7 @@ const RootWithQuery: React.FC = () => {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/role-selection" options={{ headerShown: false }} />
+        <Stack.Screen name="participants" options={{ headerShown: false }} />
       </Stack>
     </GestureHandlerRootView>
   );

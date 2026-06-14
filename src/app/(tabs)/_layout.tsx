@@ -62,24 +62,35 @@ export default function TabLayout(): React.JSX.Element {
           }}
         />
         <Tabs.Screen
-          name="profile"
+          name="brackets"
           options={{
             title: "",
             tabBarIcon: ({ color }) => (
-              <Ionicons
-                name="git-network-outline"
-                size={24}
-                style={{ color }}
-              />
+              <Icon>
+                <Ionicons name="trophy-outline" size={24} style={{ color }} />
+              </Icon>
             ),
           }}
         />
         <Tabs.Screen
-          name="event"
+          name="judging"
           options={{
             title: "",
             tabBarIcon: ({ color }) => (
-              <Ionicons name="create-outline" size={24} style={{ color }} />
+              <Icon>
+                <Ionicons name="shield-checkmark-outline" size={24} style={{ color }} />
+              </Icon>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="live"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Icon>
+                <Ionicons name="radio-outline" size={24} style={{ color }} />
+              </Icon>
             ),
           }}
         />
@@ -88,13 +99,15 @@ export default function TabLayout(): React.JSX.Element {
           options={{
             title: "",
             tabBarIcon: ({ color }) => (
-              <Ionicons
-                name="color-palette-outline"
-                size={24}
-                style={{ color }}
-              />
+              <Icon>
+                <Ionicons name="color-palette-outline" size={24} style={{ color }} />
+              </Icon>
             ),
           }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{ href: null }}
         />
       </Tabs>
   );
