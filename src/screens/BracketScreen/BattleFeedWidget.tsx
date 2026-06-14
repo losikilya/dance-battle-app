@@ -15,7 +15,7 @@ const DEMO_FEED = [
 export const BattleFeedWidget: React.FC = () => (
   <Box style={styles.card} p={20} gap={12}>
     <Box direction="row" justify="space-between" align="center">
-      <Text variant="bodyBold">LIVE FEED</Text>
+      <Text variant="bodyBold">{getResource('bracket_feed_title')}</Text>
       <Box style={styles.onAirBadge} px={8} py={4}>
         <Text variant="body2" color="dark">{getResource('bracket_feed_label')}</Text>
       </Box>

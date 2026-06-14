@@ -42,7 +42,7 @@ export const BracketScreen: React.FC = () => {
             <Text variant="body2" color="primary">{activeRound}</Text>
           </Box>
           <Text variant="body2" color="textSecondary">
-            PARTICIPANTS: {String(activeBattleParticipants).padStart(2, '0')} / {String(participants.length).padStart(2, '0')}
+            {getResource('bracket_participants_prefix')} {String(activeBattleParticipants).padStart(2, '0')} / {String(participants.length).padStart(2, '0')}
           </Text>
         </Box>
       </Box>

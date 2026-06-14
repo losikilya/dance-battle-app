@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Box, Text } from '@components';
@@ -20,7 +21,11 @@ const STATUS_LABELS: Record<string, string> = {
   finished: 'FINISHED',
 };
 
-export const HostDashboardScreen: React.FC = () => {
+type Props = {
+  onResetRole: () => void;
+};
+
+export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const router = useRouter();
   const role = useSessionStore(s => s.role);
   const event = useDemoBattleStore(s => s.event);
@@ -31,10 +36,11 @@ export const HostDashboardScreen: React.FC = () => {
   const generateTop8 = useDemoBattleStore(s => s.generateTop8);
   const connectedClients = useJudgingServerStore(s => s.connectedClients);
 
-  if (role !== 'host') {
-    router.replace('/(auth)/role-selection');
-    return null;
-  }
+  useEffect(() => {
+    if (role !== 'host') {
+      router.replace('/(auth)/role-selection');
+    }
+  }, [role, router]);
 
   const onlineClients = connectedClients.filter(c => c.isOnline);
   const onlineJudges = connectedClients.filter(c => c.role === 'judge' && c.isOnline);
@@ -112,6 +118,11 @@ export const HostDashboardScreen: React.FC = () => {
           label={getResource('dashboard_action_show_qr')}
           icon="qr-code-outline"
           onPress={() => router.push('/profile/judge')}
+        />
+        <ActionButton
+          label={getResource('dashboard_reset_role')}
+          icon="log-out-outline"
+          onPress={onResetRole}
         />
       </Box>
 

@@ -1,0 +1,1 @@
+export { JudgeBattleVotingScreen } from './JudgeBattleVotingScreen';

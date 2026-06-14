@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, Alert, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Box, Text, Button } from '@components';
@@ -22,10 +22,11 @@ export const ParticipantsScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  if (role !== 'host') {
-    router.replace('/(auth)/role-selection');
-    return null;
-  }
+  useEffect(() => {
+    if (role !== 'host') {
+      router.replace('/(auth)/role-selection');
+    }
+  }, [role, router]);
 
   const presentCount = participants.filter(p => p.status !== 'eliminated').length;
   const checkInPercent = participants.length > 0 ? (presentCount / participants.length) * 100 : 0;

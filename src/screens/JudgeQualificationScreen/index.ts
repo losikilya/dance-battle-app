@@ -1,0 +1,1 @@
+export { JudgeQualificationScreen } from './JudgeQualificationScreen';

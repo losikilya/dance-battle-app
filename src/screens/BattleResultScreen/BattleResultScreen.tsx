@@ -22,7 +22,7 @@ export const BattleResultScreen: React.FC = () => {
   if (battle === undefined || battle.winnerId === undefined) {
     return (
       <Box fullHeight color={Colors.dark.background} align="center" justify="center">
-        <Text variant="body2" color="textSecondary">Battle not found.</Text>
+        <Text variant="body2" color="textSecondary">{getResource('result_not_found')}</Text>
       </Box>
     );
   }

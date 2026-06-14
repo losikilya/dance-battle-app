@@ -13,6 +13,7 @@ export default {
     text: "#000",
     background: "#0B0C0E",
     backgroundLight: "#13131C",
+    backgroundOverlay: "rgba(11,12,14,0.7)",
     tint: tintColorDark,
     tabIconDefault: "#ccc",
     tabIconSelected: tintColorDark,
@@ -22,6 +23,8 @@ export default {
     dark: "#004e60",
     light: "#4cd6ff",
     main: "#4cd6ff",
+    subtle: "rgba(76,214,255,0.08)",
+    subtleAlt: "rgba(76,214,255,0.15)",
   },
   secondary: {
     contrastText: "#75B3FF",
@@ -45,6 +48,7 @@ export default {
   },
   status: {
     online: "#37fe11",
+    warning: "#FFC107",
   },
   border: {
     subtle: "rgba(255,255,255,0.08)",
