@@ -43,4 +43,18 @@ export default {
     light: "#FD7575",
     main: "#FC5A5A",
   },
+  status: {
+    online: "#37fe11",
+  },
+  border: {
+    subtle: "rgba(255,255,255,0.08)",
+  },
+  role: {
+    judgeBackground: "rgba(0,209,255,0.1)",
+    mcBackground: "rgba(208,91,255,0.2)",
+  },
+  warning: {
+    background: "rgba(147,0,10,0.2)",
+    border: "rgba(255,180,171,0.3)",
+  },
 };

@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# Added by code-review-graph
+.code-review-graph/
+
+.claude/*
+.mcp.json
+docs/*

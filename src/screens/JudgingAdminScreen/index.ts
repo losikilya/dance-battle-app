@@ -1,0 +1,1 @@
+export { JudgingAdminScreen } from './JudgingAdminScreen';

@@ -13,6 +13,7 @@ export * from "./IconButton";
 export * from "./Input";
 export * from "./List";
 export * from "./Skeleton";
+export * from "./StatusBadge";
 export * from "./Text";
 export * from "./TabBar";
 export * from "./Select";
