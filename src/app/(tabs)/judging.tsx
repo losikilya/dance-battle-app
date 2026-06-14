@@ -1,5 +1,6 @@
 import { JudgeQualificationScreen } from '@screens/JudgeQualificationScreen';
 import { JudgeBattleVotingScreen } from '@screens/JudgeBattleVotingScreen';
+import { JudgeConnectScreen } from '@screens/JudgeConnectScreen';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { useSessionStore } from '@stores/session/useSessionStore';
@@ -7,6 +8,7 @@ import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientSto
 
 export default function JudgingTab(): React.JSX.Element {
   const role = useSessionStore(s => s.role);
+  const status = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const eventStatus = syncedState?.event.status ?? 'draft';
 
@@ -18,6 +20,10 @@ export default function JudgingTab(): React.JSX.Element {
         </Text>
       </Box>
     );
+  }
+
+  if (status !== 'connected') {
+    return <JudgeConnectScreen />;
   }
 
   if (eventStatus === 'qualification') {

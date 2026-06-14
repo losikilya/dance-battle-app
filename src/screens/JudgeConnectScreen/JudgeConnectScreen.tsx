@@ -1,0 +1,134 @@
+import { useState } from "react";
+import { ScrollView, StyleSheet, TextInput } from "react-native";
+import { Box, Text, Button } from "@components";
+import Colors from "@constants/Colors";
+import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
+import { getResource } from "@resources";
+import {
+  useJudgingClientStore,
+  MAX_RECONNECT_ATTEMPTS,
+} from "@stores/judgingClient/useJudgingClientStore";
+import { useSessionStore } from "@stores/session/useSessionStore";
+
+export const JudgeConnectScreen: React.FC = () => {
+  const status = useJudgingClientStore((s) => s.status);
+  const error = useJudgingClientStore((s) => s.error);
+  const reconnectAttempts = useJudgingClientStore((s) => s.reconnectAttempts);
+  const serverAddress = useJudgingClientStore((s) => s.serverAddress);
+  const connect = useJudgingClientStore((s) => s.connect);
+
+  const judgeName = useSessionStore((s) => s.judgeName);
+  const setJudgeName = useSessionStore((s) => s.setJudgeName);
+
+  const [address, setAddress] = useState(serverAddress ?? "");
+  const [name, setName] = useState(judgeName ?? "");
+
+  const isBusy = status === "connecting" || status === "reconnecting";
+  const canConnect =
+    address.trim().length > 0 && name.trim().length > 0 && !isBusy;
+
+  const handleConnect = () => {
+    if (!canConnect) return;
+    setJudgeName(name.trim());
+    connect(address.trim());
+  };
+
+  const buttonLabel =
+    status === "connecting"
+      ? getResource("judge_connect_button") + "…"
+      : status === "reconnecting"
+        ? `${getResource("judge_connect_reconnecting_prefix")} ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}…`
+        : getResource("judge_connect_button");
+
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Box gap={4} mb={32}>
+        <Text variant="h1">{getResource("judge_connect_title")}</Text>
+        <Text variant="body2" color="textSecondary">
+          {getResource("judge_connect_subtitle")}
+        </Text>
+      </Box>
+
+      <Box gap={8} mb={16}>
+        <Text variant="body2" color="textSecondary">
+          {getResource("judge_connect_address_label")}
+        </Text>
+        <TextInput
+          style={[styles.input, isBusy && styles.inputDisabled]}
+          value={address}
+          onChangeText={setAddress}
+          placeholder="192.168.1.5:8080"
+          placeholderTextColor={Colors.text.secondary}
+          autoCapitalize="none"
+          keyboardType="numbers-and-punctuation"
+          editable={!isBusy}
+        />
+      </Box>
+
+      <Box gap={8} mb={32}>
+        <Text variant="body2" color="textSecondary">
+          {getResource("judge_connect_name_label")}
+        </Text>
+        <TextInput
+          style={[styles.input, isBusy && styles.inputDisabled]}
+          value={name}
+          onChangeText={setName}
+          placeholder={getResource("judge_connect_name_placeholder")}
+          placeholderTextColor={Colors.text.secondary}
+          editable={!isBusy}
+        />
+      </Box>
+
+      <Button disabled={!canConnect} onPress={handleConnect}>
+        {buttonLabel}
+      </Button>
+
+      {status === "error" && error !== null && (
+        <Box mt={16} p={12} style={styles.errorCard}>
+          <Text variant="body2" style={styles.errorText}>
+            {error}
+          </Text>
+        </Box>
+      )}
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+  },
+  content: {
+    paddingTop: HEADER_HEIGHT + 24,
+    paddingBottom: FOOTER_HEIGHT + 24,
+    paddingHorizontal: 24,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    color: Colors.text.primary,
+    fontSize: 14,
+    backgroundColor: Colors.dark.backgroundLight,
+  },
+  inputDisabled: {
+    opacity: 0.5,
+  },
+  errorCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.text.error,
+  },
+  errorText: {
+    color: Colors.text.error,
+  },
+});

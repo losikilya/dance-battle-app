@@ -21,6 +21,7 @@ type JudgingClientState = {
   deviceId: string | null;
   syncedState: BattleAppState | null;
   error: string | null;
+  reconnectAttempts: number;
 };
 
 type JudgingClientActions = {
@@ -29,6 +30,8 @@ type JudgingClientActions = {
   sendScore: (params: { participantId: string; judgeId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
 };
+
+export const MAX_RECONNECT_ATTEMPTS = 5;
 
 let clientSocket: TcpSocketSocket | null = null;
 let reconnectAttempts = 0;
@@ -48,12 +51,12 @@ export const useJudgingClientStore = create<JudgingClientState & JudgingClientAc
     };
 
     const tryReconnect = (): void => {
-      if (reconnectAttempts >= 5) {
-        set({ status: 'error' });
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        set({ status: 'error', reconnectAttempts });
         return;
       }
       reconnectAttempts++;
-      set({ status: 'reconnecting' });
+      set({ status: 'reconnecting', reconnectAttempts });
       reconnectTimer = setTimeout(() => {
         const address = get().serverAddress;
         if (address !== null) {
@@ -68,6 +71,7 @@ export const useJudgingClientStore = create<JudgingClientState & JudgingClientAc
       deviceId: null,
       syncedState: null,
       error: null,
+      reconnectAttempts: 0,
 
       connect: (address: string): void => {
         const lastColon = address.lastIndexOf(':');
@@ -86,7 +90,7 @@ export const useJudgingClientStore = create<JudgingClientState & JudgingClientAc
         clientSocket = createTcpConnection(
           { host, port: Number(port) },
           () => {
-            set({ status: 'connected', error: null });
+            set({ status: 'connected', error: null, reconnectAttempts: 0 });
             reconnectAttempts = 0;
           },
         );
@@ -130,6 +134,7 @@ export const useJudgingClientStore = create<JudgingClientState & JudgingClientAc
           syncedState: null,
           deviceId: null,
           error: null,
+          reconnectAttempts: 0,
         });
       },
 

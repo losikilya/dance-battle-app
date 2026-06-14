@@ -1,0 +1,1 @@
+export { JudgeConnectScreen } from './JudgeConnectScreen';
