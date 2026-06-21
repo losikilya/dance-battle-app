@@ -3,20 +3,16 @@ import { Tabs, Redirect } from "expo-router";
 import Colors from "@constants/Colors";
 import { Icon, TabBar } from "@components";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSessionStore } from "@stores/session/useSessionStore";
 
 const windowHeight = Dimensions.get("window").height;
 const IOS = "ios";
 
-// TODO: QR validation must be here
-const token = "token";
-
 export default function TabLayout(): React.JSX.Element {
-  // Only require authentication within the (app) group's layout as users
-  // need to be able to access the (auth) group and sign in again.
-  if (!token) {
-    // On web, static rendering will stop here as the user is not authenticated
-    // in the headless Node process that the pages are rendered in.
-    return <Redirect href="/(auth)/login" />;
+  const role = useSessionStore((s) => s.role);
+
+  if (!role) {
+    return <Redirect href="/(auth)/role-selection" />;
   }
 
   return (

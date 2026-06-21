@@ -71,6 +71,7 @@ type DemoBattleComputed = {
   canFinishQualification: () => boolean;
   canGenerateTop8: () => boolean;
   canStartBattle: (battleId: string) => boolean;
+  canOpenBattleVoting: (battleId: string) => boolean;
   canSubmitBattleVote: (battleId: string) => boolean;
   canGenerateNextRound: () => boolean;
 };
@@ -122,6 +123,7 @@ type DemoBattleActions = {
   generateTop8: () => Promise<void>;
 
   startBattle: (battleId: string) => Promise<void>;
+  openBattleVoting: (battleId: string) => Promise<void>;
   submitBattleVote: (params: SubmitBattleVoteParams) => Promise<void>;
 
   submitRandomVotesForBattle: (battleId: string) => Promise<void>;
@@ -488,6 +490,22 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       return battle.status === "pending";
     },
 
+    canOpenBattleVoting: (battleId) => {
+      const { event, battles } = get();
+
+      if (event.status !== 'battle') {
+        return false;
+      }
+
+      const battle = battles.find((item) => item.id === battleId);
+
+      if (!battle) {
+        return false;
+      }
+
+      return battle.status === 'active';
+    },
+
     canSubmitBattleVote: (battleId) => {
       const { event, battles } = get();
 
@@ -501,7 +519,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      return battle.status === "active" || battle.status === "voting";
+      return battle.status === "voting";
     },
 
     canGenerateNextRound: () => {
@@ -638,6 +656,12 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
+    openBattleVoting: async (battleId) => {
+      await executeCommand(
+        createCommand('battle.openVoting', { battleId }),
+      );
+    },
+
     submitBattleVote: async ({ battleId, judgeId, winnerId }) => {
       await executeCommand(
         createCommand("battle.submitVote", {
@@ -674,28 +698,38 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return;
       }
 
-      if (battle.status === "pending") {
+      if (battle.status === 'pending') {
         await executeCommand(
-          createCommand("battle.start", {
-            battleId,
-          }),
+          createCommand('battle.start', { battleId }),
         );
       }
 
-      const activeBattle = get().battles.find((item) => item.id === battleId);
+      const afterStart = get().battles.find((item) => item.id === battleId);
 
-      if (!activeBattle || activeBattle.status === "finished") {
+      if (!afterStart || afterStart.status === 'finished') {
+        return;
+      }
+
+      if (afterStart.status === 'active') {
+        await executeCommand(
+          createCommand('battle.openVoting', { battleId }),
+        );
+      }
+
+      const afterOpen = get().battles.find((item) => item.id === battleId);
+
+      if (!afterOpen || afterOpen.status !== 'voting') {
         return;
       }
 
       for (const judge of get().judges) {
         const winnerId =
           Math.random() > 0.5
-            ? activeBattle.participantAId
-            : activeBattle.participantBId;
+            ? afterOpen.participantAId
+            : afterOpen.participantBId;
 
         await executeCommand(
-          createCommand("battle.submitVote", {
+          createCommand('battle.submitVote', {
             battleId,
             judgeId: judge.id,
             winnerId,

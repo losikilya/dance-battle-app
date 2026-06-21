@@ -30,6 +30,12 @@ export const ServerStatusCard: React.FC = () => {
       <Box gap={8}>
         <ServerRow label={getResource('dashboard_server_ip')} value={localIp ?? '—'} />
         <ServerRow label={getResource('dashboard_server_port')} value={String(port)} />
+        {isOnline && port !== null && (
+          <ServerRow
+            label={getResource('dashboard_server_local')}
+            value={`127.0.0.1:${port}`}
+          />
+        )}
         <ServerRow label={getResource('dashboard_server_health')} value={getResource('dashboard_server_health_value')} />
         <ServerRow label={getResource('dashboard_server_uptime')} value="—" />
       </Box>

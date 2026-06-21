@@ -34,6 +34,9 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const canGenerateTop8 = useDemoBattleStore(s => s.canGenerateTop8);
   const startQualification = useDemoBattleStore(s => s.startQualification);
   const generateTop8 = useDemoBattleStore(s => s.generateTop8);
+  const createHostDemoEvent = useDemoBattleStore(s => s.createHostDemoEvent);
+  const fillRandomQualificationScores = useDemoBattleStore(s => s.fillRandomQualificationScores);
+  const participants = useDemoBattleStore(s => s.participants);
   const connectedClients = useJudgingServerStore(s => s.connectedClients);
 
   useEffect(() => {
@@ -100,6 +103,20 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
           label={getResource('dashboard_action_participants')}
           icon="people-outline"
           onPress={() => router.push('/participants')}
+        />
+        <ActionButton
+          label={getResource('dashboard_action_load_demo_event')}
+          icon="albums-outline"
+          onPress={createHostDemoEvent}
+        />
+        <ActionButton
+          label={getResource('dashboard_action_mock_qualification')}
+          icon="checkmark-done-outline"
+          onPress={fillRandomQualificationScores}
+          disabled={
+            participants.length < 8 ||
+            (event.status !== 'draft' && event.status !== 'qualification')
+          }
         />
         <ActionButton
           label={getResource('dashboard_action_start_qualification')}

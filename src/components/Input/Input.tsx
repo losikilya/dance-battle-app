@@ -1,13 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
   TextInput,
-  Pressable,
   TextInputProps,
   Keyboard,
   TouchableWithoutFeedback,
-  TextInputChangeEvent,
 } from "react-native";
 import Colors from "@constants/Colors";
 

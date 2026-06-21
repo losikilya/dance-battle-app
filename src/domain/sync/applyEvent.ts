@@ -115,6 +115,21 @@ export function applyEvent(
       };
     }
 
+    case "battle.votingOpened": {
+      return {
+        ...state,
+        battles: state.battles.map((battle) =>
+          battle.id === event.payload.battleId
+            ? { ...battle, status: "voting" }
+            : battle,
+        ),
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(`Voting opened for battle ${event.payload.battleId}.`),
+        ],
+      };
+    }
+
     case "battle.voteSubmitted": {
       const submittedVote = event.payload;
 

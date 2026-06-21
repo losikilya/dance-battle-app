@@ -53,6 +53,11 @@ export type BattleFinishedEvent = AppEventMeta & {
   };
 };
 
+export type BattleVotingOpenedEvent = AppEventMeta & {
+  type: 'battle.votingOpened';
+  payload: { battleId: string };
+};
+
 export type NextRoundGeneratedEvent = AppEventMeta & {
   type: 'nextRound.generated';
   payload: {
@@ -105,6 +110,7 @@ export type AppEvent =
   | BattleStartedEvent
   | BattleVoteSubmittedEvent
   | BattleFinishedEvent
+  | BattleVotingOpenedEvent
   | NextRoundGeneratedEvent
   | EventResetEvent
   | QualificationParticipantChangedEvent

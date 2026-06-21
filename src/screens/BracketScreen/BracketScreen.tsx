@@ -1,9 +1,10 @@
 import { ScrollView, StyleSheet } from 'react-native';
-import { Box, Text } from '@components';
+import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
 import { BattleRound } from '@domain/battle/types';
 import { BattleCard } from './BattleCard';
 import { PowerRankingsWidget } from './PowerRankingsWidget';
@@ -20,8 +21,13 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 export const BracketScreen: React.FC = () => {
   const battles = useDemoBattleStore(s => s.battles);
   const participants = useDemoBattleStore(s => s.participants);
+  const role = useSessionStore(s => s.role);
+  const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
+  const generateNextRound = useDemoBattleStore(s => s.generateNextRound);
 
-  const activeBattleParticipants = battles.filter(b => b.status === 'active').length * 2;
+  const activeBattleParticipants = battles.filter(
+    b => b.status === 'active' || b.status === 'voting'
+  ).length * 2;
 
   const activeRound = battles.find(b => b.round === 'final' && b.status === 'active')
     ? ROUND_LABELS.final
@@ -66,6 +72,15 @@ export const BracketScreen: React.FC = () => {
         </Box>
       )}
 
+      {role === 'host' && canGenerateNextRound() && (
+        <Box style={styles.nextRoundCard} p={20} gap={12} mb={16}>
+          <Text variant="bodyBold">{getResource('bracket_next_round_title')}</Text>
+          <Button onPress={() => { void generateNextRound(); }}>
+            {getResource('bracket_next_round_button')}
+          </Button>
+        </Box>
+      )}
+
       <Box gap={16} mt={8}>
         <PowerRankingsWidget />
         <BattleFeedWidget />
@@ -95,5 +110,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
+  },
+  nextRoundCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
   },
 });

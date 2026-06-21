@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -182,16 +181,8 @@ export const JudgingAdminScreen: React.FC = () => {
   const localIp = useJudgingServerStore((state) => state.localIp);
   const port = useJudgingServerStore((state) => state.port);
   const connectedClients = useJudgingServerStore((state) => state.connectedClients);
-  const startServer = useJudgingServerStore((state) => state.startServer);
   const restartServer = useJudgingServerStore((state) => state.restartServer);
   const event = useDemoBattleStore((state) => state.event);
-
-  useEffect(() => {
-    startServer();
-    return () => {
-      useJudgingServerStore.getState().stopServer();
-    };
-  }, [startServer]);
 
   const qrValue = localIp ? `${localIp}:${port}` : 'loading';
   const onlineCount = connectedClients.filter((c) => c.isOnline).length;

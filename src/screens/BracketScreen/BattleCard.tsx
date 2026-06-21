@@ -1,10 +1,11 @@
 import { StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Box, Text } from '@components';
+import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { Battle } from '@domain/battle/types';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
 
 type BattleCardProps = {
   battle: Battle;
@@ -32,8 +33,14 @@ const ParticipantVoteRow: React.FC<ParticipantVoteRowProps> = ({ name, votes, is
 
 export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
   const router = useRouter();
+  const role = useSessionStore(s => s.role);
   const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
   const getVotesForBattle = useDemoBattleStore(s => s.getVotesForBattle);
+  const startBattle = useDemoBattleStore(s => s.startBattle);
+  const openBattleVoting = useDemoBattleStore(s => s.openBattleVoting);
+  const canStartBattle = useDemoBattleStore(s => s.canStartBattle);
+  const canOpenBattleVoting = useDemoBattleStore(s => s.canOpenBattleVoting);
+  const submitRandomVotesForBattle = useDemoBattleStore(s => s.submitRandomVotesForBattle);
 
   const votes = getVotesForBattle(battle.id);
   const votesA = votes.filter(v => v.winnerId === battle.participantAId).length;
@@ -42,18 +49,23 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
   const nameB = getParticipantName(battle.participantBId);
 
   const isFinished = battle.status === 'finished';
+  const isHost = role === 'host';
 
   const statusLabel = isFinished
     ? getResource('bracket_status_winner')
     : battle.status === 'pending'
       ? getResource('bracket_status_pending')
-      : getResource('bracket_status_live');
+      : battle.status === 'voting'
+        ? getResource('bracket_status_voting')
+        : getResource('bracket_status_live');
 
   const statusColor = isFinished
     ? Colors.primary.main
     : battle.status === 'pending'
       ? Colors.text.secondary
-      : Colors.status.online;
+      : battle.status === 'voting'
+        ? Colors.secondary.main
+        : Colors.status.online;
 
   return (
     <TouchableOpacity
@@ -81,6 +93,30 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
           votes={votesB}
           isWinner={battle.winnerId === battle.participantBId}
         />
+        {isHost && battle.status === 'pending' && (
+          <Button
+            disabled={!canStartBattle(battle.id)}
+            onPress={() => { void startBattle(battle.id); }}
+          >
+            {getResource('battle_start_battle')}
+          </Button>
+        )}
+        {isHost && battle.status === 'active' && (
+          <Button
+            disabled={!canOpenBattleVoting(battle.id)}
+            onPress={() => { void openBattleVoting(battle.id); }}
+          >
+            {getResource('battle_open_voting')}
+          </Button>
+        )}
+        {isHost && !isFinished && (
+          <Button
+            variant="outlined"
+            onPress={() => { void submitRandomVotesForBattle(battle.id); }}
+          >
+            {getResource('battle_mock_votes')}
+          </Button>
+        )}
       </Box>
     </TouchableOpacity>
   );

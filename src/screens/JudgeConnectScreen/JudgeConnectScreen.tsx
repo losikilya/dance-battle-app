@@ -8,6 +8,7 @@ import {
   useJudgingClientStore,
   MAX_RECONNECT_ATTEMPTS,
 } from "@stores/judgingClient/useJudgingClientStore";
+import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
 
 export const JudgeConnectScreen: React.FC = () => {
@@ -16,6 +17,8 @@ export const JudgeConnectScreen: React.FC = () => {
   const reconnectAttempts = useJudgingClientStore((s) => s.reconnectAttempts);
   const serverAddress = useJudgingClientStore((s) => s.serverAddress);
   const connectToHost = useJudgingClientStore((s) => s.connectToHost);
+
+  const serverPort = useJudgingServerStore((s) => s.port);
 
   const requestedJudgeId = useSessionStore((s) => s.judgeId);
   const judgeName = useSessionStore((s) => s.judgeName);
@@ -65,6 +68,30 @@ export const JudgeConnectScreen: React.FC = () => {
           {getResource("judge_connect_subtitle")}
         </Text>
       </Box>
+
+      {serverPort !== null && (
+        <Box style={styles.quickConnect} p={16} gap={12} mb={24}>
+          <Box gap={4}>
+            <Text variant="body2" color="textSecondary">
+              {getResource("judge_connect_local_detected")}
+            </Text>
+            <Text variant="bodyBold">{`127.0.0.1:${serverPort}`}</Text>
+          </Box>
+          <Button
+            disabled={isBusy}
+            onPress={() => {
+              connectToHost({
+                host: "127.0.0.1",
+                port: serverPort,
+                role: "judge",
+                name: "Demo Judge",
+              });
+            }}
+          >
+            {getResource("judge_connect_local_button")}
+          </Button>
+        </Box>
+      )}
 
       <Box gap={8} mb={16}>
         <Text variant="body2" color="textSecondary">
@@ -133,6 +160,12 @@ const styles = StyleSheet.create({
   },
   inputDisabled: {
     opacity: 0.5,
+  },
+  quickConnect: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
   },
   errorCard: {
     backgroundColor: Colors.dark.backgroundLight,

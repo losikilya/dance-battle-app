@@ -42,6 +42,9 @@ export function handleCommand(
     case 'battle.start':
       return handleStartBattleCommand(state, command);
 
+    case 'battle.openVoting':
+      return handleOpenBattleVotingCommand(state, command);
+
     case 'battle.submitVote':
       return handleSubmitBattleVoteCommand(state, command);
 
@@ -290,6 +293,35 @@ function handleStartBattleCommand(
   ]);
 }
 
+function handleOpenBattleVotingCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.openVoting' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'battle') {
+    return commandFailure(
+      'invalid_status',
+      'Voting can be opened only during battle stage',
+    );
+  }
+
+  const battle = state.battles.find(b => b.id === command.payload.battleId);
+
+  if (!battle) {
+    return commandFailure('not_found', 'Battle not found');
+  }
+
+  if (battle.status !== 'active') {
+    return commandFailure(
+      'action_not_allowed',
+      'Only active battles can open voting',
+    );
+  }
+
+  return commandSuccess([
+    createAppEvent('battle.votingOpened', { battleId: battle.id }),
+  ]);
+}
+
 function handleSubmitBattleVoteCommand(
   state: BattleAppState,
   command: Extract<AppCommand, { type: 'battle.submitVote' }>,
@@ -313,10 +345,10 @@ function handleSubmitBattleVoteCommand(
     return commandFailure('already_finished', 'Battle is already finished');
   }
 
-  if (battle.status !== 'active' && battle.status !== 'voting') {
+  if (battle.status !== 'voting') {
     return commandFailure(
       'action_not_allowed',
-      'Battle should be active before voting',
+      'Voting must be opened before submitting a vote',
     );
   }
 

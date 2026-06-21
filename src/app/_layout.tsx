@@ -1,7 +1,9 @@
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-gesture-handler";
-import { AppBootstrap } from "./AppBootstrap";
+import { AppBootstrap } from "../components/AppBootstrap";
+import Colors from "@constants/Colors";
+import { Text } from "@components";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -16,8 +18,14 @@ export const unstable_settings = {
 const RootWithQuery: React.FC = () => {
   return (
     <AppBootstrap>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack>
+      <GestureHandlerRootView
+        style={{ flex: 1, backgroundColor: Colors.dark.background }}
+      >
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: Colors.dark.background },
+          }}
+        >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
           <Stack.Screen

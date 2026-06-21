@@ -14,7 +14,7 @@ export const BattleResultScreen: React.FC = () => {
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
   const battles = useDemoBattleStore(s => s.battles);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
-  const votes = useDemoBattleStore(s => s.getVotesForBattle(battleId ?? ''));
+  const allVotes = useDemoBattleStore(s => s.votes);
   const judges = useDemoBattleStore(s => s.judges);
   const participants = useDemoBattleStore(s => s.participants);
   const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
@@ -28,6 +28,8 @@ export const BattleResultScreen: React.FC = () => {
       </Box>
     );
   }
+
+  const votes = allVotes.filter(v => v.battleId === battleId);
 
   const winner = participants.find(p => p.id === battle.winnerId);
   const loserId = battle.participantAId === battle.winnerId

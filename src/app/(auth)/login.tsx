@@ -1,13 +1,13 @@
 import Colors from "@constants/Colors";
 import { Redirect } from "expo-router";
 import { Box } from "@components";
-
-// TODO: QR validation must be here
-const token = "token";
+import { useSessionStore } from "@stores/session/useSessionStore";
 
 export default function Login(): React.JSX.Element {
-  if (token) {
-    return <Redirect href="/(auth)/role-selection" />;
+  const role = useSessionStore((s) => s.role);
+
+  if (role) {
+    return <Redirect href="/(tabs)" />;
   }
 
   return (

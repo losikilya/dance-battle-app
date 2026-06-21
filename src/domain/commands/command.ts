@@ -54,6 +54,11 @@ export type GenerateNextRoundCommand = CommandMeta & {
   payload: Record<string, never>;
 };
 
+export type OpenBattleVotingCommand = CommandMeta & {
+  type: 'battle.openVoting';
+  payload: { battleId: string };
+};
+
 export type ResetEventCommand = CommandMeta & {
   type: 'event.reset';
   payload: Record<string, never>;
@@ -98,6 +103,7 @@ export type AppCommand =
   | StartBattleCommand
   | SubmitBattleVoteCommand
   | GenerateNextRoundCommand
+  | OpenBattleVotingCommand
   | ResetEventCommand
   | CreateEventCommand
   | AddParticipantCommand
