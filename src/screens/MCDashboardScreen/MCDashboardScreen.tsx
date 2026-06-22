@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Box, Text, Button } from '@components';
@@ -19,7 +20,10 @@ const STATUS_LABELS: Record<string, string> = {
 export const MCDashboardScreen: React.FC = () => {
   const router = useRouter();
   const syncedState = useJudgingClientStore(s => s.syncedState);
-  const ranking = useDemoBattleStore(s => s.getRanking());
+  const getRanking = useDemoBattleStore(s => s.getRanking);
+  const demoParticipants = useDemoBattleStore(s => s.participants);
+  const demoScores = useDemoBattleStore(s => s.scores);
+  const ranking = useMemo(() => getRanking(), [getRanking, demoParticipants, demoScores]);
 
   const participants = syncedState?.participants ?? [];
   const idx = syncedState?.currentQualificationParticipantIndex ?? 0;
