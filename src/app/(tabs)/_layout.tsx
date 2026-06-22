@@ -12,7 +12,7 @@ export default function TabLayout(): React.JSX.Element {
   const role = useSessionStore((s) => s.role);
 
   if (!role) {
-    return <Redirect href="/(auth)/role-selection" />;
+    return <Redirect href="/(auth)/discovery" />;
   }
 
   return (

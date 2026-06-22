@@ -65,6 +65,7 @@ type JudgingClientState = {
   role: ClientRole | null;
   name: string | null;
   requestedJudgeId: string | null;
+  pendingAddress: string | null;
 };
 
 type JudgingClientActions = {
@@ -80,6 +81,7 @@ type JudgingClientActions = {
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
+  setPendingAddress: (address: string | null) => void;
 };
 
 type JudgingClientComputed = {
@@ -316,6 +318,7 @@ export const useJudgingClientStore = create<
     role: null,
     name: null,
     requestedJudgeId: null,
+    pendingAddress: null,
 
     getCurrentQualificationParticipant: (): Participant | null => {
       const syncedState = get().syncedState;
@@ -583,6 +586,10 @@ export const useJudgingClientStore = create<
 
     sendVote: ({ battleId, winnerId }): void => {
       get().submitBattleVote({ battleId, winnerId });
+    },
+
+    setPendingAddress: (address): void => {
+      set({ pendingAddress: address });
     },
   };
 });

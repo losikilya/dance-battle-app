@@ -3,10 +3,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-gesture-handler";
 import { AppBootstrap } from "../components/AppBootstrap";
 import Colors from "@constants/Colors";
-import { Text } from "@components";
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from "expo-router";
 
@@ -27,13 +25,11 @@ const RootWithQuery: React.FC = () => {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="(auth)/role-selection"
-            options={{ headerShown: false }}
-          />
+          <Stack.Screen name="(auth)/discovery" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/role-selection" options={{ headerShown: false }} />
           <Stack.Screen name="participants" options={{ headerShown: false }} />
           <Stack.Screen name="create-event" options={{ headerShown: false }} />
+          <Stack.Screen name="scan-qr" options={{ headerShown: false }} />
         </Stack>
       </GestureHandlerRootView>
     </AppBootstrap>

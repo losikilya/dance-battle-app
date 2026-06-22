@@ -10,21 +10,28 @@ import {
 } from "@stores/judgingClient/useJudgingClientStore";
 import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
+import type { ClientRole } from "@domain/sync/wsProtocol";
 
 export const JudgeConnectScreen: React.FC = () => {
   const status = useJudgingClientStore((s) => s.status);
   const lastError = useJudgingClientStore((s) => s.lastError);
   const reconnectAttempts = useJudgingClientStore((s) => s.reconnectAttempts);
   const serverAddress = useJudgingClientStore((s) => s.serverAddress);
+  const pendingAddress = useJudgingClientStore((s) => s.pendingAddress);
   const connectToHost = useJudgingClientStore((s) => s.connectToHost);
+  const setPendingAddress = useJudgingClientStore((s) => s.setPendingAddress);
 
   const serverPort = useJudgingServerStore((s) => s.port);
+  const serverStatus = useJudgingServerStore((s) => s.status);
 
+  const sessionRole = useSessionStore((s) => s.role);
   const requestedJudgeId = useSessionStore((s) => s.judgeId);
   const judgeName = useSessionStore((s) => s.judgeName);
   const setJudgeName = useSessionStore((s) => s.setJudgeName);
 
-  const [address, setAddress] = useState(serverAddress ?? "");
+  const clientRole: ClientRole = (sessionRole as ClientRole) ?? 'judge';
+
+  const [address, setAddress] = useState(pendingAddress ?? serverAddress ?? "");
   const [name, setName] = useState(judgeName ?? "");
 
   const isBusy = status === "connecting" || status === "reconnecting";
@@ -39,10 +46,11 @@ export const JudgeConnectScreen: React.FC = () => {
     const port = Number(trimmedAddress.slice(separatorIndex + 1));
 
     setJudgeName(name.trim());
+    setPendingAddress(null);
     connectToHost({
       host,
       port,
-      role: "judge",
+      role: clientRole,
       name: name.trim(),
       requestedJudgeId: requestedJudgeId ?? undefined,
     });
@@ -69,7 +77,7 @@ export const JudgeConnectScreen: React.FC = () => {
         </Text>
       </Box>
 
-      {serverPort !== null && (
+      {serverStatus === 'running' && (
         <Box style={styles.quickConnect} p={16} gap={12} mb={24}>
           <Box gap={4}>
             <Text variant="body2" color="textSecondary">
@@ -80,10 +88,11 @@ export const JudgeConnectScreen: React.FC = () => {
           <Button
             disabled={isBusy}
             onPress={() => {
+              setPendingAddress(null);
               connectToHost({
                 host: "127.0.0.1",
                 port: serverPort,
-                role: "judge",
+                role: clientRole,
                 name: "Demo Judge",
               });
             }}
