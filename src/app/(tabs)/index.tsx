@@ -15,7 +15,6 @@ export default function DashboardTab(): React.JSX.Element {
     router.replace("/(auth)/role-selection");
   };
 
-  console.log("🚀 ~ DashboardTab ~ role:", role)
   if (role === "host") {
     return <HostDashboardScreen onResetRole={handleResetRole} />;
   }
