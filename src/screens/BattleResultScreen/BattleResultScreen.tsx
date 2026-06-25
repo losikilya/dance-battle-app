@@ -6,12 +6,16 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
+import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
 import { DancerCard } from './DancerCard';
 import { JudgeVerdictRow } from './JudgeVerdictRow';
 
 export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
+  const role = useSessionStore(s => s.role);
+  const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const battles = useDemoBattleStore(s => s.battles);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
   const allVotes = useDemoBattleStore(s => s.votes);
@@ -83,6 +87,12 @@ export const BattleResultScreen: React.FC = () => {
             <JudgeVerdictRow
               key={judge.id}
               judge={judge}
+              displayName={getJudgeDisplayName({
+                judgeId: judge.id,
+                judgeName: judge.name,
+                role,
+                selfJudgeId,
+              })}
               vote={vote}
               participantAId={battle.participantAId}
             />

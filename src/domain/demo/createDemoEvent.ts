@@ -10,7 +10,7 @@ export function createDemoEvent(): DanceEvent {
     categoryTitle: 'Hip-Hop 1x1',
     status: 'draft',
     format: 'top8',
-    judgesCount: 3,
+    judgesCount: 1,
     createdAt: new Date().toISOString(),
   };
 }
@@ -33,7 +33,5 @@ export function createDemoParticipants(): Participant[] {
 export function createDemoJudges(): Judge[] {
   return [
     { id: 'judge_1', name: 'Judge Alex', role: 'head' },
-    { id: 'judge_2', name: 'Judge Maria', role: 'standard' },
-    { id: 'judge_3', name: 'Judge Ken', role: 'standard' },
   ];
 }

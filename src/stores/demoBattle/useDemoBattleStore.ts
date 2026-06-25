@@ -107,7 +107,7 @@ type DemoBattleActions = {
   resetDemo: () => Promise<void>;
   clearLastCommandError: () => void;
 
-  createEvent: (params: CreateEventParams) => void;
+  createEvent: (params: CreateEventParams) => Promise<string | null>;
   addParticipant: (params: AddParticipantParams) => void;
   removeParticipant: (participantId: string) => void;
   toggleParticipantCheckIn: (participantId: string) => void;
@@ -267,7 +267,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         );
         const judgesCount = Math.max(
           1,
-          Math.floor(params.judgesCount ?? 3),
+          Math.floor(params.judgesCount ?? 1),
         );
         const format = params.format ?? "top8";
 
@@ -592,6 +592,8 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     createEvent: async ({ title, categoryTitle, format, judgesCount }) => {
+      const previousEventId = get().event.id;
+
       await executeCommand(
         createCommand("event.create", {
           title,
@@ -600,6 +602,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           judgesCount,
         }),
       );
+
+      return get().event.id === previousEventId
+        ? null
+        : get().judges[0]?.id ?? null;
     },
 
     addParticipant: async ({ name, number, crew, city }) => {

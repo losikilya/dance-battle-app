@@ -35,13 +35,13 @@ export const JudgeBattleVotingScreen: React.FC = () => {
     v => v.battleId === activeBattleId && v.judgeId === judgeId,
   ) ?? null;
 
-  const isVotingOpen = activeBattle?.status === 'voting' || activeBattle?.status === 'active';
+  const isVotingOpen = activeBattle?.status === 'voting';
   const categoryTitle = syncedState?.event.categoryTitle ?? '—';
   const round = activeBattle?.round;
   const slot = activeBattle?.slot;
 
   const handleConfirm = () => {
-    if (!activeBattleId || !pendingVote || !judgeId) return;
+    if (!isVotingOpen || !activeBattleId || !pendingVote || !judgeId) return;
     submitBattleVote({ battleId: activeBattleId, winnerId: pendingVote });
     setPendingVote(null);
   };
@@ -141,11 +141,10 @@ export const JudgeBattleVotingScreen: React.FC = () => {
                 </Button>
               )}
 
-              {!isVotingOpen && (
+              {activeBattle.status === 'active' && (
                 <Box style={styles.waitingCard} p={24} align="center" gap={12} mt={8}>
-                  <Text variant="bodyBold" centered>{getResource('judge_waiting_title')}</Text>
-                  <Text variant="body2" color="textSecondary" centered>
-                    {getResource('judge_waiting_body')}
+                  <Text variant="bodyBold" centered>
+                    {getResource('judge_waiting_host_open_voting')}
                   </Text>
                   <View style={styles.progressTrack}>
                     <View style={styles.progressFill} />

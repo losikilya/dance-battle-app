@@ -10,6 +10,11 @@ import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerSto
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { StatCard } from './StatCard';
 import { ActionButton } from './ActionButton';
+import { QualificationControlCard } from './QualificationControlCard';
+import { HostLocalJudgeView } from './HostLocalJudgeView';
+import { HostLocalMCView } from './HostLocalMCView';
+import { HostLocalSpectatorView } from './HostLocalSpectatorView';
+import { HostViewSwitcher } from './HostViewSwitcher';
 import { ServerStatusCard } from './ServerStatusCard';
 import { SystemLogsCard } from './SystemLogsCard';
 
@@ -28,6 +33,9 @@ type Props = {
 export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const router = useRouter();
   const role = useSessionStore(s => s.role);
+  const activeViewRole = useSessionStore(s => s.activeViewRole ?? 'host');
+  const hasJudgeRole = useSessionStore(s => s.hasRole('judge'));
+  const setSelfJudgeId = useSessionStore(s => s.setSelfJudgeId);
   const event = useDemoBattleStore(s => s.event);
   const judges = useDemoBattleStore(s => s.judges);
   const canStartQualification = useDemoBattleStore(s => s.canStartQualification);
@@ -50,12 +58,36 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const mc = connectedClients.find(c => c.role === 'mc');
   const spectators = connectedClients.filter(c => c.role === 'spectator' && c.isOnline);
 
+  const handleCreateHostDemoEvent = async () => {
+    await createHostDemoEvent();
+    setSelfJudgeId(
+      hasJudgeRole ? useDemoBattleStore.getState().judges[0]?.id ?? null : null,
+    );
+  };
+
+  if (activeViewRole !== 'host') {
+    return (
+      <Box fullHeight color={Colors.dark.background} pt={HEADER_HEIGHT + 24}>
+        <Box px={24} mb={20}>
+          <HostViewSwitcher />
+        </Box>
+        {activeViewRole === 'mc' && <HostLocalMCView />}
+        {activeViewRole === 'judge' && <HostLocalJudgeView />}
+        {activeViewRole === 'spectator' && <HostLocalSpectatorView />}
+      </Box>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <Box mb={24}>
+        <HostViewSwitcher />
+      </Box>
+
       <Box gap={4} mb={24}>
         <Text variant="body2" color="textSecondary">{getResource('dashboard_event_live')}</Text>
         <Text variant="h1">{event.title}</Text>
@@ -107,7 +139,9 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
         <ActionButton
           label={getResource('dashboard_action_load_demo_event')}
           icon="albums-outline"
-          onPress={createHostDemoEvent}
+          onPress={() => {
+            void handleCreateHostDemoEvent();
+          }}
         />
         <ActionButton
           label={getResource('dashboard_action_mock_qualification')}
@@ -147,6 +181,8 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
           onPress={onResetRole}
         />
       </Box>
+
+      {event.status === 'qualification' && <QualificationControlCard />}
 
       {event.status === 'draft' && (
         <Box style={styles.hero} p={24} gap={8} mb={24} align="center">

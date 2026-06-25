@@ -7,12 +7,18 @@ import { BattleVote } from '@domain/battle/types';
 
 type JudgeVerdictRowProps = {
   judge: Judge;
+  displayName?: string;
   vote: BattleVote | null;
   participantAId: string;
 };
 
-export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({ judge, vote, participantAId }) => {
-  const initials = judge.name
+export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({
+  judge,
+  displayName = judge.name,
+  vote,
+  participantAId,
+}) => {
+  const initials = displayName
     .split(' ')
     .slice(0, 2)
     .map(w => w.charAt(0).toUpperCase())
@@ -27,7 +33,7 @@ export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({ judge, vote, p
         <Text variant="body2" color="textSecondary">{initials}</Text>
       </Box>
       <Box flex={1} gap={2}>
-        <Text variant="bodyBold">{judge.name}</Text>
+        <Text variant="bodyBold">{displayName}</Text>
         <Text variant="body2" color="textSecondary">
           {judge.role === 'head' ? getResource('result_judge_role_head') : getResource('result_judge_role_standard')}
         </Text>

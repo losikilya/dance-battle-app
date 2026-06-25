@@ -13,6 +13,7 @@ import type {
 } from '@domain/sync/wsProtocol';
 import { createId } from '../../shared/lib/createId';
 import { useDemoBattleStore } from '../demoBattle/useDemoBattleStore';
+import { useSessionStore } from '../session/useSessionStore';
 
 export type ConnectedClient = {
   deviceId: string;
@@ -228,6 +229,10 @@ export const useJudgingServerStore = create<
     requestedJudgeId?: string,
   ): string | null => {
     const judges = useDemoBattleStore.getState().judges;
+    const session = useSessionStore.getState();
+    const selfJudgeId = session.hasRole('judge')
+      ? session.selfJudgeId
+      : null;
     const existingClient = get().connectedClients.find(
       (client) => client.deviceId === deviceId,
     );
@@ -250,6 +255,10 @@ export const useJudgingServerStore = create<
         )
         .map((client) => client.judgeId as string),
     );
+
+    if (selfJudgeId) {
+      assignedJudgeIds.add(selfJudgeId);
+    }
 
     if (
       requestedJudgeId &&
