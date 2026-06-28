@@ -3,14 +3,16 @@ import { Box, Text } from '@components';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useBattleState } from '@stores/battle/useBattleState';
+import { calculateRanking } from '@domain/qualification/calculateRanking';
 
 const DELTAS = ['+12%', '+8%', '-3%'];
 
 export const PowerRankingsWidget: React.FC = () => {
-  const getRanking = useDemoBattleStore(s => s.getRanking);
-  const participants = useDemoBattleStore(s => s.participants);
-  const top3 = getRanking().slice(0, 3);
+  const { state } = useBattleState();
+  const participants = state?.participants ?? [];
+  const scores = state?.scores ?? [];
+  const top3 = calculateRanking({ participants, scores }).slice(0, 3);
 
   return (
     <Box style={styles.card} p={20} gap={12}>

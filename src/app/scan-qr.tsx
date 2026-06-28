@@ -18,7 +18,7 @@ export default function ScanQrScreen(): React.JSX.Element {
     if (scanned) return;
     setScanned(true);
     setPendingAddress(data.trim());
-    router.back();
+    router.replace('/(auth)/role-selection');
   };
 
   if (!permission) {

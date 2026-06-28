@@ -35,8 +35,7 @@ export const JudgeConnectScreen: React.FC = () => {
   const [name, setName] = useState(judgeName ?? "");
 
   const isBusy = status === "connecting" || status === "reconnecting";
-  const canConnect =
-    address.trim().length > 0 && name.trim().length > 0 && !isBusy;
+  const canConnect = address.trim().length > 0 && !isBusy;
 
   const handleConnect = () => {
     if (!canConnect) return;
@@ -51,7 +50,7 @@ export const JudgeConnectScreen: React.FC = () => {
       host,
       port,
       role: clientRole,
-      name: name.trim(),
+      name: name.trim() || undefined,
       requestedJudgeId: requestedJudgeId ?? undefined,
     });
   };

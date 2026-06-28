@@ -9,9 +9,7 @@ export type BattleStateResult = {
 };
 
 export function useBattleState(): BattleStateResult {
-  const role = useSessionStore((s) => s.role);
-  const roles = useSessionStore((s) => s.roles);
-  const isHost = role === "host" || roles.includes("host");
+  const isHost = useSessionStore((s) => s.roles.includes('host'));
 
   const event = useDemoBattleStore((s) => s.event);
   const participants = useDemoBattleStore((s) => s.participants);

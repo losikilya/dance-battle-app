@@ -4,7 +4,7 @@ import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useBattleState } from '@stores/battle/useBattleState';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
@@ -14,14 +14,15 @@ import { JudgeVerdictRow } from './JudgeVerdictRow';
 export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
+  const { state, isHost } = useBattleState();
   const role = useSessionStore(s => s.role);
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
-  const battles = useDemoBattleStore(s => s.battles);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
-  const allVotes = useDemoBattleStore(s => s.votes);
-  const judges = useDemoBattleStore(s => s.judges);
-  const participants = useDemoBattleStore(s => s.participants);
-  const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
+
+  const battles = state?.battles ?? [];
+  const judges = state?.judges ?? [];
+  const participants = state?.participants ?? [];
+  const allVotes = state?.votes ?? [];
 
   const battle = battles.find(b => b.id === battleId);
 
@@ -34,6 +35,8 @@ export const BattleResultScreen: React.FC = () => {
   }
 
   const votes = allVotes.filter(v => v.battleId === battleId);
+  const getParticipantName = (id: string) =>
+    participants.find(p => p.id === id)?.name ?? 'Unknown';
 
   const winner = participants.find(p => p.id === battle.winnerId);
   const loserId = battle.participantAId === battle.winnerId
@@ -100,19 +103,29 @@ export const BattleResultScreen: React.FC = () => {
         })}
       </Box>
 
-      <Box gap={12}>
-        <Box mb={4}>
-          <Text variant="body2" color="textSecondary">
-            {getResource('result_host_actions_title')}
-          </Text>
+      {isHost && (
+        <Box gap={12}>
+          <Box mb={4}>
+            <Text variant="body2" color="textSecondary">
+              {getResource('result_host_actions_title')}
+            </Text>
+          </Box>
+          <Button onPress={() => { broadcastState(); Alert.alert('Broadcasted to all clients.'); }}>
+            {getResource('result_broadcast')}
+          </Button>
+          <Button variant="outlined" color="secondary" onPress={() => router.back()}>
+            {getResource('result_archive')}
+          </Button>
         </Box>
-        <Button onPress={() => { broadcastState(); Alert.alert('Broadcasted to all clients.'); }}>
-          {getResource('result_broadcast')}
-        </Button>
-        <Button variant="outlined" color="secondary" onPress={() => router.back()}>
-          {getResource('result_archive')}
-        </Button>
-      </Box>
+      )}
+
+      {!isHost && (
+        <Box gap={12}>
+          <Button variant="outlined" color="secondary" onPress={() => router.back()}>
+            {getResource('result_archive')}
+          </Button>
+        </Box>
+      )}
     </ScrollView>
   );
 };

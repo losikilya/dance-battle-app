@@ -3,17 +3,20 @@ import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
+import { useBattleState } from '@stores/battle/useBattleState';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { calculateRanking } from '@domain/qualification/calculateRanking';
 import { RankingRow } from './RankingRow';
 
 export const RankingsScreen: React.FC = () => {
-  const event = useDemoBattleStore(s => s.event);
-  const participants = useDemoBattleStore(s => s.participants);
-  const getRanking = useDemoBattleStore(s => s.getRanking);
+  const { state, isHost } = useBattleState();
   const generateTop8 = useDemoBattleStore(s => s.generateTop8);
   const canGenerateTop8 = useDemoBattleStore(s => s.canGenerateTop8);
 
-  const ranking = getRanking();
+  const participants = state?.participants ?? [];
+  const scores = state?.scores ?? [];
+  const ranking = calculateRanking({ participants, scores });
+
   const avgScore = ranking.length > 0
     ? ranking.reduce((sum, r) => sum + r.averageScore, 0) / ranking.length
     : 0;
@@ -35,7 +38,7 @@ export const RankingsScreen: React.FC = () => {
 
       <Box mb={16}>
         <Text variant="body2" color="textSecondary">
-          {getResource('ranking_description_prefix')} {event.categoryTitle}{getResource('ranking_description_suffix')}
+          {getResource('ranking_description_prefix')} {state?.event.categoryTitle ?? '—'}{getResource('ranking_description_suffix')}
         </Text>
       </Box>
 
@@ -79,16 +82,18 @@ export const RankingsScreen: React.FC = () => {
         </Box>
       </Box>
 
-      <Box style={styles.ctaCard} p={20} gap={16}>
-        <Text variant="bodyBold" color="dark">{getResource('ranking_cta_label')}</Text>
-        <Button
-          color="secondaryDark"
-          onPress={generateTop8}
-          disabled={!canGenerateTop8()}
-        >
-          {getResource('ranking_cta_button')}
-        </Button>
-      </Box>
+      {isHost && (
+        <Box style={styles.ctaCard} p={20} gap={16}>
+          <Text variant="bodyBold" color="dark">{getResource('ranking_cta_label')}</Text>
+          <Button
+            color="secondaryDark"
+            onPress={generateTop8}
+            disabled={!canGenerateTop8()}
+          >
+            {getResource('ranking_cta_button')}
+          </Button>
+        </Box>
+      )}
     </ScrollView>
   );
 };
