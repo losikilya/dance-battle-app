@@ -7,16 +7,32 @@ import { Box, Button, Divider, Text } from "@components";
 import { getResource } from "@resources";
 import { AppRole, ROLE_CONFIG } from "@domain/role/types";
 import { useSessionStore } from "@stores/session/useSessionStore";
+import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
 import { RoleCard } from "./RoleCard";
 import { StatusBanner } from "./StatusBanner";
 
 export const RoleSelectionScreen: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<AppRole | null>(null);
   const setRole = useSessionStore((s) => s.setRole);
+  const pendingAddress = useJudgingClientStore((s) => s.pendingAddress);
 
   const handleConfirm = () => {
     if (!selectedRole) return;
     setRole(selectedRole);
+
+    if (pendingAddress && selectedRole === "judge") {
+      router.replace("/(tabs)/judging");
+      return;
+    }
+
+    if (
+      pendingAddress &&
+      (selectedRole === "mc" || selectedRole === "spectator")
+    ) {
+      router.replace("/(tabs)/live");
+      return;
+    }
+
     router.replace("/(tabs)");
   };
 

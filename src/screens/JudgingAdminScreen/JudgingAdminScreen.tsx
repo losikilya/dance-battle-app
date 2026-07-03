@@ -10,6 +10,7 @@ import {
   useJudgingServerStore,
 } from '@stores/judgingServer/useJudgingServerStore';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { createQrPayload } from '../../infrastructure/network/connectionAddress';
 
 type InfoCardProps = {
   label: string;
@@ -98,6 +99,10 @@ const styles = StyleSheet.create({
     padding: 24,
     borderRadius: 12,
   },
+  qrUnavailable: {
+    width: 256,
+    height: 256,
+  },
   scanBadge: {
     position: 'absolute',
     top: -12,
@@ -178,13 +183,18 @@ const styles = StyleSheet.create({
 });
 
 export const JudgingAdminScreen: React.FC = () => {
-  const localIp = useJudgingServerStore((state) => state.localIp);
-  const port = useJudgingServerStore((state) => state.port);
+  const connectionInfo = useJudgingServerStore((state) => state.connectionInfo);
+  const lastError = useJudgingServerStore((state) => state.lastError);
+  const serverPort = useJudgingServerStore((state) => state.port);
+  const port = connectionInfo?.port ?? serverPort;
   const connectedClients = useJudgingServerStore((state) => state.connectedClients);
   const restartServer = useJudgingServerStore((state) => state.restartServer);
   const event = useDemoBattleStore((state) => state.event);
 
-  const qrValue = localIp ? `${localIp}:${port}` : 'loading';
+  const displayHost = connectionInfo?.host ?? '...';
+  const qrValue = connectionInfo
+    ? createQrPayload(connectionInfo.host, connectionInfo.port)
+    : null;
   const onlineCount = connectedClients.filter((c) => c.isOnline).length;
   const namedClients = connectedClients.filter((c) => c.role !== 'spectator');
   const spectatorCount = connectedClients.filter(
@@ -205,7 +215,15 @@ export const JudgingAdminScreen: React.FC = () => {
 
           <View style={styles.qrContainer}>
             <View style={styles.qrCard}>
-              <QRCode value={qrValue} size={256} backgroundColor={Colors.text.primary} color={Colors.dark.text} />
+              {qrValue ? (
+                <QRCode value={qrValue} size={256} backgroundColor={Colors.text.primary} color={Colors.dark.text} />
+              ) : (
+                <Box style={styles.qrUnavailable} align="center" justify="center">
+                  <Text variant="body2" color={Colors.primary.dark} centered>
+                    LAN address unavailable
+                  </Text>
+                </Box>
+              )}
             </View>
             <View style={styles.scanBadge}>
               <Text variant="body2" color={Colors.primary.dark}>{getResource('judging_scan_to_join')}</Text>
@@ -214,7 +232,7 @@ export const JudgingAdminScreen: React.FC = () => {
 
           <Box direction="row" gap={16}>
             <View style={styles.infoCardWrapper}>
-              <InfoCard label={getResource('judging_ip_address')} value={localIp ?? '...'} />
+              <InfoCard label={getResource('judging_ip_address')} value={displayHost} />
             </View>
             <View style={styles.infoCardWrapper}>
               <InfoCard label={getResource('judging_port')} value={String(port)} />
@@ -225,6 +243,7 @@ export const JudgingAdminScreen: React.FC = () => {
             <Ionicons name="warning-outline" size={22} color={Colors.error.main} />
             <Text variant="body" style={styles.warningText}>
               {getResource('judging_wifi_warning')}
+              {lastError ? ` ${lastError}` : ''}
             </Text>
           </View>
         </View>

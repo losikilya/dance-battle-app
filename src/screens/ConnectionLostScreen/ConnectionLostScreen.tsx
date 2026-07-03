@@ -17,6 +17,7 @@ export const ConnectionLostScreen: React.FC = () => {
   const port = useJudgingClientStore(s => s.port);
   const role = useJudgingClientStore(s => s.role);
   const name = useJudgingClientStore(s => s.name);
+  const lastError = useJudgingClientStore(s => s.lastError);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
   const disconnect = useJudgingClientStore(s => s.disconnect);
 
@@ -55,7 +56,7 @@ export const ConnectionLostScreen: React.FC = () => {
       </Text>
 
       <Text variant="body2" color="textSecondary" centered>
-        {getResource('connection_lost_body')}
+        {lastError ?? getResource('connection_lost_body')}
       </Text>
 
       <Box direction="row" gap={12}>

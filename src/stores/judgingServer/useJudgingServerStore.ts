@@ -11,6 +11,10 @@ import type {
   HostMessage,
   JoinMessage,
 } from '@domain/sync/wsProtocol';
+import {
+  isUsableLanIpv4Address,
+  type ParsedHostAddress,
+} from '../../infrastructure/network/connectionAddress';
 import { createId } from '../../shared/lib/createId';
 import { useDemoBattleStore } from '../demoBattle/useDemoBattleStore';
 import { useSessionStore } from '../session/useSessionStore';
@@ -23,7 +27,7 @@ export type ConnectedClient = {
   isOnline: boolean;
 };
 
-export type ServerStatus = 'idle' | 'running' | 'error';
+export type ServerStatus = 'idle' | 'starting' | 'running' | 'error';
 
 export type HostConnectionInfo = {
   host: string;
@@ -58,6 +62,23 @@ let tcpServer: ReturnType<typeof TcpSocket.createServer> | null = null;
 const clientSockets = new Map<string, TcpSocketSocket>();
 let unsubscribeFromEventLog: (() => void) | null = null;
 let lastBroadcastEventIndex = 0;
+const BIND_HOST = '0.0.0.0';
+
+async function getLanConnectionInfo(
+  port: number,
+): Promise<ParsedHostAddress | null> {
+  const ip = (await Network.getIpAddressAsync()).trim();
+
+  if (!isUsableLanIpv4Address(ip)) {
+    return null;
+  }
+
+  return {
+    host: ip,
+    port,
+    address: `${ip}:${port}`,
+  };
+}
 
 function getBattleSnapshot() {
   const {
@@ -277,6 +298,11 @@ export const useJudgingServerStore = create<
     socket: TcpSocketSocket,
     message: JoinMessage,
   ): string | null => {
+    console.log(
+      '[judging-server] join received',
+      message.role,
+      message.deviceId,
+    );
     if (
       typeof message.deviceId !== 'string' ||
       message.deviceId.trim().length === 0 ||
@@ -345,6 +371,7 @@ export const useJudgingServerStore = create<
       assignedJudgeId,
       snapshot: getBattleSnapshot(),
     });
+    console.log('[judging-server] joined sent', deviceId);
 
     return deviceId;
   };
@@ -492,6 +519,7 @@ export const useJudgingServerStore = create<
   };
 
   const onClientConnect = (socket: TcpSocketSocket): void => {
+    console.log('[judging-server] incoming socket connection');
     let buffer = '';
     let joinedDeviceId: string | null = null;
     let processingQueue: Promise<void> = Promise.resolve();
@@ -552,42 +580,75 @@ export const useJudgingServerStore = create<
     connectionInfo: null,
 
     startServer: async (): Promise<void> => {
-      if (get().status === 'running') {
+      if (get().status === 'running' || get().status === 'starting') {
         return;
       }
 
-      set({ status: 'running', lastError: null, error: null });
+      set({ status: 'starting', lastError: null, error: null });
 
       try {
-        const ip = await Network.getIpAddressAsync();
         const port = get().port;
+        const connectionInfo = await getLanConnectionInfo(port);
+        const lanIp = connectionInfo?.host ?? null;
         set({
-          hostIp: ip,
-          localIp: ip,
-          connectionInfo: {
-            host: ip,
-            port,
-            address: `${ip}:${port}`,
-          },
+          hostIp: lanIp,
+          localIp: lanIp,
+          connectionInfo,
+          lastError:
+            connectionInfo === null
+              ? 'No usable LAN IPv4 address is available. Connect both devices to the same Wi-Fi or hotspot.'
+              : null,
+          error: null,
         });
 
         tcpServer = TcpSocket.createServer(onClientConnect);
+        await new Promise<void>((resolve, reject) => {
+          const handleError = (error: Error): void => {
+            reject(error);
+          };
+
+          tcpServer?.on('error', handleError);
+          console.log('[judging-server] start', {
+            bindAddress: BIND_HOST,
+            lanIp,
+            port,
+          });
+          tcpServer?.listen({ port, host: BIND_HOST }, () => {
+            tcpServer?.removeListener?.('error', handleError);
+            resolve();
+          });
+        });
+
         tcpServer.on('error', (error: Error) => {
+          const message = `TCP server error: ${error.message}`;
+          console.log('[judging-server] error', message);
           stopEventLogBroadcasting();
           set({
             status: 'error',
-            lastError: error.message,
-            error: error.message,
+            lastError: message,
+            error: message,
           });
         });
-        tcpServer.listen({ port: get().port, host: '0.0.0.0' }, () => {
-          set({ status: 'running' });
+        set((state) => ({
+          status: 'running',
+          lastError: state.connectionInfo === null ? state.lastError : null,
+          error: null,
+        }));
+        console.log('[judging-server] listening', {
+          bindAddress: BIND_HOST,
+          lanIp,
+          port,
         });
         startEventLogBroadcasting();
       } catch (error) {
         stopEventLogBroadcasting();
+        tcpServer?.close();
+        tcpServer = null;
         const message =
-          error instanceof Error ? error.message : String(error);
+          error instanceof Error
+            ? `Failed to start TCP server on ${BIND_HOST}:${get().port}: ${error.message}`
+            : `Failed to start TCP server on ${BIND_HOST}:${get().port}: ${String(error)}`;
+        console.log('[judging-server] start error', message);
         set({
           status: 'error',
           lastError: message,

@@ -13,6 +13,10 @@ import type {
   ClientRole,
   HostMessage,
 } from '@domain/sync/wsProtocol';
+import {
+  parseManualAddress,
+  type ParsedHostAddress,
+} from '../../infrastructure/network/connectionAddress';
 import { createId } from '../../shared/lib/createId';
 
 type TcpModule = typeof TcpSocket & {
@@ -96,11 +100,13 @@ type UnknownMessage = {
 };
 
 export const MAX_RECONNECT_ATTEMPTS = 5;
+const CONNECT_TIMEOUT_MS = 10000;
 
 const localDeviceId = createId('device');
 let clientSocket: TcpSocketSocket | null = null;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 const intentionallyClosedSockets = new WeakSet<TcpSocketSocket>();
 
 function isMessageObject(value: unknown): value is UnknownMessage {
@@ -123,6 +129,30 @@ function getAssignedJudgeName(
 export const useJudgingClientStore = create<
   JudgingClientState & JudgingClientComputed & JudgingClientActions
 >((set, get) => {
+  const clearReconnectTimer = (): void => {
+    if (reconnectTimer !== null) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+
+  const clearConnectTimeout = (): void => {
+    if (connectTimeoutTimer !== null) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
+  };
+
+  const closeClientSocket = (): void => {
+    clearConnectTimeout();
+
+    if (clientSocket !== null) {
+      intentionallyClosedSockets.add(clientSocket);
+      clientSocket.destroy();
+      clientSocket = null;
+    }
+  };
+
   const writeMessage = (message: ClientMessage): void => {
     if (clientSocket && !clientSocket.destroyed) {
       clientSocket.write(`${JSON.stringify(message)}\n`);
@@ -163,6 +193,7 @@ export const useJudgingClientStore = create<
 
     switch (message.type) {
       case 'joined':
+        console.log('[judging-client] joined received');
         set({
           status: 'connected',
           assignedJudgeId: message.assignedJudgeId,
@@ -257,6 +288,7 @@ export const useJudgingClientStore = create<
     }
 
     reconnectAttempts += 1;
+    console.log('[judging-client] reconnect attempt', reconnectAttempts);
     set({ status: 'reconnecting', reconnectAttempts });
 
     reconnectTimer = setTimeout(() => {
@@ -270,14 +302,135 @@ export const useJudgingClientStore = create<
       } = get();
 
       if (serverAddress && role) {
-        get().connect({
-          address: serverAddress,
-          role,
-          name: name ?? undefined,
-          requestedJudgeId: requestedJudgeId ?? undefined,
-        });
+        const parsedAddress = parseManualAddress(serverAddress);
+        connectToParsedAddress(
+          parsedAddress.ok ? parsedAddress.value : null,
+          {
+            role,
+            name: name ?? undefined,
+            requestedJudgeId: requestedJudgeId ?? undefined,
+          },
+          true,
+        );
       }
     }, 3000);
+  };
+
+  const connectToParsedAddress = (
+    parsedAddress: ParsedHostAddress | null,
+    params: {
+      role: ClientRole;
+      name?: string;
+      requestedJudgeId?: string;
+    },
+    isReconnect: boolean,
+  ): void => {
+    if (parsedAddress === null) {
+      set({
+        status: 'error',
+        lastError: 'Server address must use the format host:port',
+        error: 'Server address must use the format host:port',
+      });
+      return;
+    }
+
+    if (!isReconnect) {
+      clearReconnectTimer();
+      reconnectAttempts = 0;
+    }
+
+    closeClientSocket();
+
+    const { host, port, address } = parsedAddress;
+    console.log('[judging-client] connect attempt', { host, port });
+
+    set((state) => ({
+      status: isReconnect ? 'reconnecting' : 'connecting',
+      host,
+      port,
+      serverAddress: address,
+      role: params.role,
+      name: params.name ?? null,
+      requestedJudgeId: params.requestedJudgeId ?? null,
+      assignedJudgeId: null,
+      assignedJudgeName: null,
+      lastError: isReconnect ? state.lastError : null,
+      error: isReconnect ? state.error : null,
+      reconnectAttempts,
+    }));
+
+    let buffer = '';
+    let socket: TcpSocketSocket;
+    socket = createTcpConnection({ host, port }, () => {
+      clearConnectTimeout();
+      console.log('[judging-client] connected');
+
+      if (!socket.destroyed) {
+        const joinMessage: ClientMessage = {
+          type: 'join',
+          messageId: createId('message'),
+          deviceId: get().deviceId,
+          role: params.role,
+          name: params.name,
+          requestedJudgeId: params.requestedJudgeId,
+        };
+        socket.write(`${JSON.stringify(joinMessage)}\n`);
+        console.log('[judging-client] join sent');
+      }
+    });
+    clientSocket = socket;
+
+    connectTimeoutTimer = setTimeout(() => {
+      if (clientSocket !== socket || socket.destroyed) {
+        return;
+      }
+
+      const message = `Connection timed out after ${CONNECT_TIMEOUT_MS / 1000}s`;
+      console.log('[judging-client] timeout', { host, port });
+      set({ lastError: message, error: message });
+      socket.destroy();
+      scheduleReconnect();
+    }, CONNECT_TIMEOUT_MS);
+
+    socket.on('data', (data: Buffer | string) => {
+      buffer += data.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      lines.filter(Boolean).forEach((line) => {
+        try {
+          handleMessage(JSON.parse(line) as unknown);
+        } catch (error) {
+          sendProtocolError(
+            'invalid_json',
+            error instanceof Error ? error.message : 'Invalid JSON message',
+          );
+        }
+      });
+    });
+
+    socket.on('close', () => {
+      clearConnectTimeout();
+      if (intentionallyClosedSockets.has(socket)) {
+        intentionallyClosedSockets.delete(socket);
+        return;
+      }
+
+      if (clientSocket === socket) {
+        clientSocket = null;
+      }
+      scheduleReconnect();
+    });
+
+    socket.on('error', (error: Error & { code?: string }) => {
+      clearConnectTimeout();
+      const message = error.code
+        ? `${error.code}: ${error.message}`
+        : error.message;
+      console.log('[judging-client] connection error', message);
+      set({ lastError: message, error: message });
+      scheduleReconnect();
+    });
   };
 
   const sendCommand = (command: AppCommand): void => {
@@ -359,95 +512,22 @@ export const useJudgingClientStore = create<
     },
 
     connect: ({ address, role, name, requestedJudgeId }): void => {
-      const lastColon = address.lastIndexOf(':');
-      const host = address.slice(0, lastColon);
-      const port = Number(address.slice(lastColon + 1));
+      const parsedAddress = parseManualAddress(address);
 
-      if (
-        lastColon <= 0 ||
-        host.length === 0 ||
-        !Number.isInteger(port) ||
-        port <= 0 ||
-        port > 65535
-      ) {
+      if (!parsedAddress.ok) {
         set({
           status: 'error',
-          lastError: 'Server address must use the format IP:port',
-          error: 'Server address must use the format IP:port',
+          lastError: parsedAddress.error,
+          error: parsedAddress.error,
         });
         return;
       }
 
-      if (clientSocket !== null) {
-        intentionallyClosedSockets.add(clientSocket);
-        clientSocket.destroy();
-        clientSocket = null;
-      }
-
-      set({
-        status: reconnectAttempts > 0 ? 'reconnecting' : 'connecting',
-        host,
-        port,
-        serverAddress: address,
+      connectToParsedAddress(parsedAddress.value, {
         role,
-        name: name ?? null,
-        requestedJudgeId: requestedJudgeId ?? null,
-        assignedJudgeId: null,
-        assignedJudgeName: null,
-        lastError: null,
-        error: null,
-      });
-
-      let buffer = '';
-      let socket: TcpSocketSocket;
-      socket = createTcpConnection({ host, port }, () => {
-        if (!socket.destroyed) {
-          const joinMessage: ClientMessage = {
-            type: 'join',
-            messageId: createId('message'),
-            deviceId: get().deviceId,
-            role,
-            name,
-            requestedJudgeId,
-          };
-          socket.write(`${JSON.stringify(joinMessage)}\n`);
-        }
-      });
-      clientSocket = socket;
-
-      socket.on('data', (data: Buffer | string) => {
-        buffer += data.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        lines.filter(Boolean).forEach((line) => {
-          try {
-            handleMessage(JSON.parse(line) as unknown);
-          } catch (error) {
-            sendProtocolError(
-              'invalid_json',
-              error instanceof Error ? error.message : 'Invalid JSON message',
-            );
-          }
-        });
-      });
-
-      socket.on('close', () => {
-        if (intentionallyClosedSockets.has(socket)) {
-          intentionallyClosedSockets.delete(socket);
-          return;
-        }
-
-        if (clientSocket === socket) {
-          clientSocket = null;
-        }
-        scheduleReconnect();
-      });
-
-      socket.on('error', (error: Error) => {
-        set({ lastError: error.message, error: error.message });
-        scheduleReconnect();
-      });
+        name: name ?? undefined,
+        requestedJudgeId: requestedJudgeId ?? undefined,
+      }, false);
     },
 
     connectToHost: ({ host, port, role, name, requestedJudgeId }): void => {
@@ -460,16 +540,8 @@ export const useJudgingClientStore = create<
     },
 
     disconnect: (): void => {
-      if (reconnectTimer !== null) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-
-      if (clientSocket !== null) {
-        intentionallyClosedSockets.add(clientSocket);
-        clientSocket.destroy();
-        clientSocket = null;
-      }
+      clearReconnectTimer();
+      closeClientSocket();
 
       reconnectAttempts = 0;
       set({

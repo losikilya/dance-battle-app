@@ -11,6 +11,7 @@ import {
 import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
 import type { ClientRole } from "@domain/sync/wsProtocol";
+import { parseManualAddress } from "../../infrastructure/network/connectionAddress";
 
 export const JudgeConnectScreen: React.FC = () => {
   const status = useJudgingClientStore((s) => s.status);
@@ -21,7 +22,7 @@ export const JudgeConnectScreen: React.FC = () => {
   const connectToHost = useJudgingClientStore((s) => s.connectToHost);
   const setPendingAddress = useJudgingClientStore((s) => s.setPendingAddress);
 
-  const serverPort = useJudgingServerStore((s) => s.port);
+  const connectionInfo = useJudgingServerStore((s) => s.connectionInfo);
   const serverStatus = useJudgingServerStore((s) => s.status);
 
   const sessionRole = useSessionStore((s) => s.role);
@@ -33,22 +34,26 @@ export const JudgeConnectScreen: React.FC = () => {
 
   const [address, setAddress] = useState(pendingAddress ?? serverAddress ?? "");
   const [name, setName] = useState(judgeName ?? "");
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const isBusy = status === "connecting" || status === "reconnecting";
   const canConnect = address.trim().length > 0 && !isBusy;
 
   const handleConnect = () => {
     if (!canConnect) return;
-    const trimmedAddress = address.trim();
-    const separatorIndex = trimmedAddress.lastIndexOf(":");
-    const host = trimmedAddress.slice(0, separatorIndex);
-    const port = Number(trimmedAddress.slice(separatorIndex + 1));
+    const parsedAddress = parseManualAddress(address);
 
+    if (!parsedAddress.ok) {
+      setValidationError(parsedAddress.error);
+      return;
+    }
+
+    setValidationError(null);
     setJudgeName(name.trim());
     setPendingAddress(null);
     connectToHost({
-      host,
-      port,
+      host: parsedAddress.value.host,
+      port: parsedAddress.value.port,
       role: clientRole,
       name: name.trim() || undefined,
       requestedJudgeId: requestedJudgeId ?? undefined,
@@ -76,21 +81,21 @@ export const JudgeConnectScreen: React.FC = () => {
         </Text>
       </Box>
 
-      {serverStatus === 'running' && (
+      {serverStatus === 'running' && connectionInfo !== null && (
         <Box style={styles.quickConnect} p={16} gap={12} mb={24}>
           <Box gap={4}>
             <Text variant="body2" color="textSecondary">
               {getResource("judge_connect_local_detected")}
             </Text>
-            <Text variant="bodyBold">{`127.0.0.1:${serverPort}`}</Text>
+            <Text variant="bodyBold">{connectionInfo.address}</Text>
           </Box>
           <Button
             disabled={isBusy}
             onPress={() => {
               setPendingAddress(null);
               connectToHost({
-                host: "127.0.0.1",
-                port: serverPort,
+                host: connectionInfo.host,
+                port: connectionInfo.port,
                 role: clientRole,
                 name: "Demo Judge",
               });
@@ -135,7 +140,15 @@ export const JudgeConnectScreen: React.FC = () => {
         {buttonLabel}
       </Button>
 
-      {status === "error" && lastError !== null && (
+      {validationError !== null && (
+        <Box mt={16} p={12} style={styles.errorCard}>
+          <Text variant="body2" style={styles.errorText}>
+            {validationError}
+          </Text>
+        </Box>
+      )}
+
+      {(status === "error" || status === "reconnecting") && lastError !== null && (
         <Box mt={16} p={12} style={styles.errorCard}>
           <Text variant="body2" style={styles.errorText}>
             {lastError}

@@ -7,17 +7,56 @@ import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
+import { parseQrPayload } from '../infrastructure/network/connectionAddress';
+import type { ClientRole } from '@domain/sync/wsProtocol';
 
 export default function ScanQrScreen(): React.JSX.Element {
   const router = useRouter();
   const setPendingAddress = useJudgingClientStore(s => s.setPendingAddress);
+  const connectToHost = useJudgingClientStore(s => s.connectToHost);
+  const sessionRole = useSessionStore(s => s.role);
+  const judgeName = useSessionStore(s => s.judgeName);
+  const requestedJudgeId = useSessionStore(s => s.judgeId);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const handleBarcodeScan = ({ data }: { data: string }) => {
     if (scanned) return;
-    setScanned(true);
-    setPendingAddress(data.trim());
+    const parsedPayload = parseQrPayload(data);
+
+    if (!parsedPayload.ok) {
+      setScanError(parsedPayload.error);
+      setScanned(true);
+      setTimeout(() => {
+        setScanned(false);
+        setScanError(null);
+      }, 2000);
+      return;
+    }
+
+    const clientRole =
+      sessionRole === 'judge' ||
+      sessionRole === 'mc' ||
+      sessionRole === 'spectator'
+        ? (sessionRole as ClientRole)
+        : null;
+
+    if (clientRole) {
+      setPendingAddress(null);
+      connectToHost({
+        host: parsedPayload.value.host,
+        port: parsedPayload.value.port,
+        role: clientRole,
+        name: judgeName ?? undefined,
+        requestedJudgeId: requestedJudgeId ?? undefined,
+      });
+      router.replace('/(tabs)');
+      return;
+    }
+
+    setPendingAddress(parsedPayload.value.address);
     router.replace('/(auth)/role-selection');
   };
 
@@ -69,7 +108,7 @@ export default function ScanQrScreen(): React.JSX.Element {
           <Box style={styles.frame} />
           <Box mt={16}>
             <Text variant="body2" style={styles.scanLabel}>
-              {getResource('scan_qr_label')}
+              {scanError ?? getResource('scan_qr_label')}
             </Text>
           </Box>
         </Box>

@@ -245,6 +245,51 @@ for existing screens. New UI should prefer the public actions above.
 current participant from client state. `submitBattleVote(...)` adds the
 Host-assigned judge ID before sending the command.
 
+## Local TCP Connection
+
+Both devices must be connected to the same Wi-Fi network or the same phone
+hotspot. The Host listens on `0.0.0.0`, but UI must display and share the
+usable LAN IPv4 address, not `0.0.0.0`, `127.0.0.1`, or `localhost`.
+
+Host `connectionInfo` is the source of truth for display and QR generation:
+
+```ts
+{
+  host: '192.168.1.10',
+  port: 8080,
+  address: '192.168.1.10:8080',
+}
+```
+
+If no usable LAN IPv4 address is available, Host UI should show a warning and
+must not encode a QR payload with localhost or the bind address.
+
+The QR payload format is JSON:
+
+```json
+{
+  "version": 1,
+  "host": "192.168.1.10",
+  "port": 8080
+}
+```
+
+QR scanning also accepts the legacy manual format `host:port`, but new QR codes
+must use the JSON payload above. After a valid scan, the app either immediately
+calls `connectToHost({ host, port, role, name, requestedJudgeId })` when the
+client role is already selected, or stores the parsed `host:port` as the
+prefilled manual address so the user can explicitly connect after selecting a
+role. Invalid QR data should show an error.
+
+Manual address entry uses the same parser as legacy QR data. It trims
+whitespace, accepts IPv4 addresses or hostnames, requires a port from `1` to
+`65535`, and rejects `0.0.0.0`, `127.*`, and `localhost`.
+
+The TCP transport uses `react-native-tcp-socket`, so it requires a native
+Android build or Expo development build. It will not work in Expo Go. Android
+requires `INTERNET`; `ACCESS_NETWORK_STATE` is also configured for network
+state/IP diagnostics.
+
 The Judge selectors read only from `syncedState`. They return `null` when there
 is no current participant or active battle. `getParticipantName(...)` returns
 `'Unknown'` when the participant is unavailable.

@@ -21,10 +21,10 @@ export const DiscoveryScreen: React.FC = () => {
   const router = useRouter();
   const setRole = useSessionStore(s => s.setRole);
   const serverStatus = useJudgingServerStore(s => s.status);
-  const serverPort = useJudgingServerStore(s => s.port);
+  const connectionInfo = useJudgingServerStore(s => s.connectionInfo);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
 
-  const isLocalServerRunning = serverStatus === 'running';
+  const isLocalServerRunning = serverStatus === 'running' && connectionInfo !== null;
   const [selectedRole, setSelectedRole] = useState<ClientRole>('judge');
 
   const handleCreateEvent = () => {
@@ -33,10 +33,11 @@ export const DiscoveryScreen: React.FC = () => {
   };
 
   const handleJoinLocal = () => {
+    if (connectionInfo === null) return;
     setRole(selectedRole);
     connectToHost({
-      host: '127.0.0.1',
-      port: serverPort,
+      host: connectionInfo.host,
+      port: connectionInfo.port,
       role: selectedRole,
       name: `Demo ${ROLE_LABELS[selectedRole]}`,
     });
@@ -74,7 +75,7 @@ export const DiscoveryScreen: React.FC = () => {
               {getResource('discovery_local_detected')}
             </Text>
           </Box>
-          <Text variant="bodyBold">{`127.0.0.1:${serverPort}`}</Text>
+          <Text variant="bodyBold">{connectionInfo.address}</Text>
 
           <Box direction="row" gap={8}>
             {CLIENT_ROLES.map(r => (
