@@ -1,3 +1,5 @@
+import type { QualificationAdvanceMode } from '../qualification/types';
+
 export type EventStatus =
   | 'draft'
   | 'qualification'
@@ -14,5 +16,7 @@ export type DanceEvent = {
   status: EventStatus;
   format: BattleFormat;
   judgesCount: number;
+  qualificationDurationSeconds: number;
+  qualificationAdvanceMode: QualificationAdvanceMode;
   createdAt: string;
 };

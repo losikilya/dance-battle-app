@@ -97,6 +97,7 @@ function getBattleSnapshot() {
     battles,
     votes,
     currentQualificationParticipantIndex,
+    qualificationTimer,
     activeBattleId,
     systemLogs,
   } = useDemoBattleStore.getState();
@@ -109,6 +110,7 @@ function getBattleSnapshot() {
     battles,
     votes,
     currentQualificationParticipantIndex,
+    qualificationTimer,
     activeBattleId,
     systemLogs,
   };
@@ -138,6 +140,27 @@ function isCommandLike(value: unknown): value is AppCommand {
     typeof command.createdAt === 'string' &&
     typeof command.payload === 'object' &&
     command.payload !== null
+  );
+}
+
+function isJudgeCommand(
+  command: AppCommand,
+): command is Extract<
+  AppCommand,
+  { type: 'qualification.submitScore' | 'battle.submitVote' }
+> {
+  return (
+    command.type === 'qualification.submitScore' ||
+    command.type === 'battle.submitVote'
+  );
+}
+
+function isMcTimerCommand(command: AppCommand): boolean {
+  return (
+    command.type === 'qualification.timer.pause' ||
+    command.type === 'qualification.timer.resume' ||
+    command.type === 'qualification.timer.restart' ||
+    command.type === 'qualification.advanceParticipant'
   );
 }
 
@@ -476,26 +499,43 @@ export const useJudgingServerStore = create<
       return;
     }
 
-    if (client.role !== 'judge' || client.judgeId === null) {
+    const command = message.command;
+
+    if (client.role === 'mc') {
+      if (!isMcTimerCommand(command)) {
+        sendError(
+          socket,
+          'action_not_allowed',
+          'MC can control only qualification timer and participant advance',
+          message.messageId,
+        );
+        return;
+      }
+    } else if (client.role === 'judge') {
+      if (client.judgeId === null) {
+        sendError(
+          socket,
+          'action_not_allowed',
+          'Judge identity is required before sending commands',
+          message.messageId,
+        );
+        return;
+      }
+
+      if (!isJudgeCommand(command) || command.payload.judgeId !== client.judgeId) {
+        sendError(
+          socket,
+          'judge_identity_mismatch',
+          'Command does not use the judge assigned to this connection',
+          message.messageId,
+        );
+        return;
+      }
+    } else {
       sendError(
         socket,
         'action_not_allowed',
         'This client role cannot send commands',
-        message.messageId,
-      );
-      return;
-    }
-
-    const command = message.command;
-    const isJudgeCommand =
-      command.type === 'qualification.submitScore' ||
-      command.type === 'battle.submitVote';
-
-    if (!isJudgeCommand || command.payload.judgeId !== client.judgeId) {
-      sendError(
-        socket,
-        'judge_identity_mismatch',
-        'Command does not use the judge assigned to this connection',
         message.messageId,
       );
       return;

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Box, Text, Button } from '@components';
+import { Box, Text, Button, QualificationTimerDisplay } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { ScoreNumpad } from './ScoreNumpad';
 import { CriteriaBar } from './CriteriaBar';
+import type { BattleAppState } from '@domain/sync/appState';
+import type { Participant } from '@domain/participant/types';
 
 const CRITERIA = [
   { key: 'technique', label: () => getResource('judge_criteria_technique'), value: 0.75 },
@@ -31,6 +33,38 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
   connecting: 'judge_badge_disconnected',
 };
 
+function getPendingParticipantForJudge(
+  syncedState: BattleAppState | null,
+  judgeId: string | null,
+): Participant | null {
+  if (!syncedState || !judgeId) {
+    return null;
+  }
+
+  for (
+    let index = 0;
+    index <= syncedState.currentQualificationParticipantIndex;
+    index += 1
+  ) {
+    const participant = syncedState.participants[index];
+
+    if (
+      participant &&
+      !syncedState.scores.some(
+        score =>
+          score.participantId === participant.id && score.judgeId === judgeId,
+      )
+    ) {
+      return participant;
+    }
+  }
+
+  return (
+    syncedState.participants[syncedState.currentQualificationParticipantIndex] ??
+    null
+  );
+}
+
 export const JudgeQualificationScreen: React.FC = () => {
   const [selectedScore, setSelectedScore] = useState<number | null>(null);
 
@@ -43,7 +77,11 @@ export const JudgeQualificationScreen: React.FC = () => {
 
   const participants = syncedState?.participants ?? [];
   const currentIndex = syncedState?.currentQualificationParticipantIndex ?? 0;
-  const currentParticipant = participants[currentIndex] ?? null;
+  const hostCurrentParticipant = participants[currentIndex] ?? null;
+  const currentParticipant = getPendingParticipantForJudge(
+    syncedState,
+    judgeId,
+  );
 
   const existingScore = syncedState?.scores.find(
     s => s.participantId === currentParticipant?.id && s.judgeId === judgeId,
@@ -51,6 +89,10 @@ export const JudgeQualificationScreen: React.FC = () => {
 
   const alreadySubmitted = existingScore !== null;
   const displayScore = alreadySubmitted ? existingScore : selectedScore;
+
+  useEffect(() => {
+    setSelectedScore(null);
+  }, [currentParticipant?.id]);
 
   const handleSubmit = () => {
     if (!currentParticipant || selectedScore === null || alreadySubmitted || !judgeId) return;
@@ -85,6 +127,24 @@ export const JudgeQualificationScreen: React.FC = () => {
 
       {currentParticipant !== null ? (
         <>
+          {syncedState?.event.status === 'qualification' && (
+            <Box mb={16}>
+              <QualificationTimerDisplay
+                timer={syncedState.qualificationTimer}
+                durationSeconds={syncedState.event.qualificationDurationSeconds}
+              />
+            </Box>
+          )}
+
+          {hostCurrentParticipant &&
+            hostCurrentParticipant.id !== currentParticipant.id && (
+              <Box style={styles.notice} p={12} mb={16}>
+                <Text variant="body2" color="textSecondary" centered>
+                  Сейчас выступает: {hostCurrentParticipant.name}
+                </Text>
+              </Box>
+            )}
+
           <Box style={styles.participantCard} mb={24} gap={12}>
             <Box px={10} py={4} style={styles.numberBadge}>
               <Text variant="bodyBold" color="primary">
@@ -162,6 +222,12 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
+  },
+  notice: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.status.warning,
   },
   numberBadge: {
     backgroundColor: Colors.primary.subtleAlt,

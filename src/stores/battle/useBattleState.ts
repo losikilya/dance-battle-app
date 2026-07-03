@@ -20,6 +20,7 @@ export function useBattleState(): BattleStateResult {
   const currentQualificationParticipantIndex = useDemoBattleStore(
     (s) => s.currentQualificationParticipantIndex,
   );
+  const qualificationTimer = useDemoBattleStore((s) => s.qualificationTimer);
   const activeBattleId = useDemoBattleStore((s) => s.activeBattleId);
   const systemLogs = useDemoBattleStore((s) => s.systemLogs);
   const syncedState = useJudgingClientStore((s) => s.syncedState);
@@ -32,6 +33,7 @@ export function useBattleState(): BattleStateResult {
     battles,
     votes,
     currentQualificationParticipantIndex,
+    qualificationTimer,
     activeBattleId,
     systemLogs,
   };

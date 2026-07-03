@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Box, Text, Button } from '@components';
+import { Box, Text, Button, QualificationTimerDisplay } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
@@ -20,6 +20,18 @@ const STATUS_LABELS: Record<string, string> = {
 export const MCDashboardScreen: React.FC = () => {
   const router = useRouter();
   const syncedState = useJudgingClientStore(s => s.syncedState);
+  const pauseQualificationTimer = useJudgingClientStore(
+    s => s.pauseQualificationTimer,
+  );
+  const resumeQualificationTimer = useJudgingClientStore(
+    s => s.resumeQualificationTimer,
+  );
+  const restartQualificationTimer = useJudgingClientStore(
+    s => s.restartQualificationTimer,
+  );
+  const advanceQualificationParticipant = useJudgingClientStore(
+    s => s.advanceQualificationParticipant,
+  );
 
   const participants = syncedState?.participants ?? [];
   const scores = syncedState?.scores ?? [];
@@ -34,7 +46,10 @@ export const MCDashboardScreen: React.FC = () => {
   const total = participants.length;
   const progress = total > 0 ? (idx + 1) / total : 0;
   const eventStatus = syncedState?.event.status ?? 'draft';
+  const qualificationTimer = syncedState?.qualificationTimer ?? null;
+  const event = syncedState?.event ?? null;
   const top8 = ranking.slice(0, 8);
+  const isManualMode = event?.qualificationAdvanceMode === 'manual';
 
   return (
     <ScrollView
@@ -83,7 +98,9 @@ export const MCDashboardScreen: React.FC = () => {
             <Box direction="row" gap={1} mt={8}>
               <Box style={styles.statBox} align="center" gap={4} flex={1}>
                 <Text variant="body2" color="textSecondary">{getResource('mc_remaining')}</Text>
-                <Text variant="bodyBold">00:34</Text>
+                <Text variant="bodyBold">
+                  {qualificationTimer?.status.toUpperCase() ?? 'READY'}
+                </Text>
               </Box>
               <Box style={styles.statDivider} />
               <Box style={styles.statBox} align="center" gap={4} flex={1}>
@@ -97,6 +114,53 @@ export const MCDashboardScreen: React.FC = () => {
               </Box>
             </Box>
           </Box>
+        </Box>
+      )}
+
+      {eventStatus === 'qualification' && qualificationTimer && event && (
+        <Box style={styles.timerCard} p={16} gap={12} mb={24}>
+          <QualificationTimerDisplay
+            timer={qualificationTimer}
+            durationSeconds={event.qualificationDurationSeconds}
+          />
+          <Box direction="row" gap={8}>
+            <Box flex={1}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onPress={
+                  qualificationTimer.status === 'paused'
+                    ? resumeQualificationTimer
+                    : pauseQualificationTimer
+                }
+                disabled={
+                  qualificationTimer.status !== 'running' &&
+                  qualificationTimer.status !== 'paused'
+                }
+              >
+                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
+              </Button>
+            </Box>
+            <Box flex={1}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onPress={restartQualificationTimer}
+              >
+                RESTART
+              </Button>
+            </Box>
+          </Box>
+          {isManualMode && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              onPress={advanceQualificationParticipant}
+              disabled={idx >= participants.length - 1}
+            >
+              NEXT PARTICIPANT
+            </Button>
+          )}
         </Box>
       )}
 
@@ -216,6 +280,12 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   nextUpCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+  },
+  timerCard: {
     backgroundColor: Colors.dark.backgroundLight,
     borderRadius: 12,
     borderWidth: 1,

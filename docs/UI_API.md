@@ -47,6 +47,10 @@ one-Judge event becomes `selfJudgeId`. For larger panels, the first Judge is
 used for the Host self-role. Loading the default Host demo event follows the
 same assignment rule.
 
+Create Event UI also collects `qualificationDurationSeconds` and
+`qualificationAdvanceMode`. Duration should be validated as a positive
+reasonable integer before calling `createEvent(params)`.
+
 ## Host Battle Store
 
 Import:
@@ -64,6 +68,7 @@ State:
 - `battles`
 - `votes`
 - `currentQualificationParticipantIndex`
+- `qualificationTimer`
 - `isHydrated`
 - `isHydrating`
 - `storageError`
@@ -71,6 +76,9 @@ State:
 Selectors:
 
 - `getCurrentQualificationParticipant()`
+- `getQualificationTimer()`
+- `getQualificationTimerRemainingMs(nowMs?)`
+- `getQualificationTimingConfig()`
 - `getScoresForCurrentParticipant()`
 - `getRanking()`
 - `getChampionId()`
@@ -78,6 +86,7 @@ Selectors:
 - `getJudgeVoteForBattle(battleId, judgeId)`
 - `canStartQualification()`
 - `canGoToNextQualificationParticipant()`
+- `canManuallyAdvanceQualificationParticipant()`
 - `canFinishQualification()`
 - `canGenerateTop8()`
 - `canStartBattle(battleId)`
@@ -91,6 +100,10 @@ Actions:
 - `createHostDemoEvent(params?)`
 - `resetDemo()`
 - `startQualification()`
+- `pauseQualificationTimer()`
+- `resumeQualificationTimer()`
+- `restartQualificationTimer()`
+- `advanceQualificationParticipant()`
 - `submitQualificationScore({ participantId, judgeId, score })`
 - `goToNextQualificationParticipant()`
 - `finishQualification()`
@@ -105,14 +118,61 @@ The reachable Host qualification UI reads the current participant and scores
 from the Host battle store. It advances and finishes qualification through:
 
 - `getCurrentQualificationParticipant()`
+- `getQualificationTimer()`
+- `getQualificationTimerRemainingMs(nowMs?)`
+- `getQualificationTimingConfig()`
 - `getScoresForCurrentParticipant()`
-- `canGoToNextQualificationParticipant()`
-- `goToNextQualificationParticipant()`
+- `canManuallyAdvanceQualificationParticipant()`
+- `advanceQualificationParticipant()`
 - `canFinishQualification()`
 - `finishQualification()`
 
 Screens must not advance the participant or finish qualification by mutating
 state directly.
+
+Qualification timing is authoritative in the Host store and persisted through
+the event log. Event config supports `qualificationDurationSeconds` and
+`qualificationAdvanceMode: 'manual' | 'automatic'`; defaults are `60` seconds
+and `'manual'`.
+
+Timer state:
+
+```ts
+{
+  status: 'idle' | 'running' | 'paused' | 'expired',
+  participantId: string | null,
+  durationSeconds: number,
+  endsAt: string | null,
+  remainingMsWhenPaused: number | null,
+}
+```
+
+UI should derive ticking display time from `endsAt` or
+`remainingMsWhenPaused`; it should not write events every second.
+The shared timer display renders `mm:ss`, freezes while paused, shows expired
+state at `00:00`, and switches to warning styling at `10` seconds or less.
+
+`startQualification()` starts a timer for the first participant. Manual or
+automatic advancement starts a fresh timer for the next participant. Paused
+timers never auto-advance. `resumeQualificationTimer()` creates a new absolute
+`endsAt`, and `restartQualificationTimer()` starts the full duration again for
+the current participant.
+
+In manual mode, expiry marks the timer expired but does not advance. In
+automatic mode, expiry advances without waiting for Judge scores. Last
+participant expiry stops the timer as expired. `finishQualification()` still
+requires all required scores. Judges may submit scores for earlier participants
+while qualification remains active.
+
+MC timer controls use the public timer actions:
+
+- Host-local MC reads `useDemoBattleStore` directly.
+- Remote MC reads `useJudgingClientStore` synced state and calls the matching
+  client actions.
+- The Host server permits MC clients to send only timer pause, timer resume,
+  timer restart, and participant advance commands.
+- MC Next is shown only in manual qualification mode. Automatic mode follows
+  the Host timer coordinator.
 
 ### Battle Lifecycle
 
@@ -144,11 +204,11 @@ and `selfJudgeId` is available, the UI calls:
 
 The local Judge view is read-only when Judge self-role is disabled. Scoring and
 voting are disabled when `selfJudgeId` is missing, and voting is enabled only
-while the active battle status is `voting`. After submitting a qualification
-score, the Host local Judge can use `goToNextQualificationParticipant()` when
-the current participant has all required scores, or `finishQualification()`
-when qualification is complete. Remote Judge screens cannot advance or finish
-qualification.
+while the active battle status is `voting`. During qualification, the Host can
+advance participants with `advanceQualificationParticipant()` according to the
+configured timing mode; advancement does not require the current participant to
+have all scores. `finishQualification()` still requires all required scores.
+Remote Judge screens cannot advance or finish qualification.
 
 `createHostDemoEvent()` defaults to:
 
@@ -159,6 +219,8 @@ qualification.
   participantsCount: 10,
   judgesCount: 1,
   format: 'top8',
+  qualificationDurationSeconds: 60,
+  qualificationAdvanceMode: 'manual',
 }
 ```
 
@@ -238,6 +300,10 @@ Actions:
 - `disconnect()`
 - `submitCurrentQualificationScore(score)`
 - `submitBattleVote({ battleId, winnerId })`
+- `pauseQualificationTimer()`
+- `resumeQualificationTimer()`
+- `restartQualificationTimer()`
+- `advanceQualificationParticipant()`
 - `requestSnapshot()`
 
 Selectors:
@@ -250,8 +316,14 @@ Compatibility actions `connect`, `sendScore`, and `sendVote` remain available
 for existing screens. New UI should prefer the public actions above.
 
 `submitCurrentQualificationScore(score)` resolves both the assigned judge and
-current participant from client state. `submitBattleVote(...)` adds the
-Host-assigned judge ID before sending the command.
+the oldest participant up to the current Host participant that this Judge has
+not scored. If no pending participant exists, it uses the current Host
+participant. Judge UI should keep showing that pending participant when the
+Host advances, show `Сейчас выступает: <current participant>` when the Judge is
+behind, and move to the next oldest unscored participant after submitting.
+Remote Judge UI must not expose participant advance controls.
+`submitBattleVote(...)` adds the Host-assigned judge ID before sending the
+command.
 
 ## Local TCP Connection
 

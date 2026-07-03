@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet } from 'react-native';
-import { Box, Text } from '@components';
+import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
@@ -13,6 +13,21 @@ export const HostLocalMCView: React.FC = () => {
   const currentIndex = useDemoBattleStore(
     state => state.currentQualificationParticipantIndex,
   );
+  const qualificationTimer = useDemoBattleStore(
+    state => state.qualificationTimer,
+  );
+  const pauseQualificationTimer = useDemoBattleStore(
+    state => state.pauseQualificationTimer,
+  );
+  const resumeQualificationTimer = useDemoBattleStore(
+    state => state.resumeQualificationTimer,
+  );
+  const restartQualificationTimer = useDemoBattleStore(
+    state => state.restartQualificationTimer,
+  );
+  const advanceQualificationParticipant = useDemoBattleStore(
+    state => state.advanceQualificationParticipant,
+  );
   const getRanking = useDemoBattleStore(state => state.getRanking);
   const getChampionId = useDemoBattleStore(state => state.getChampionId);
 
@@ -23,6 +38,7 @@ export const HostLocalMCView: React.FC = () => {
   const ranking = scores.length > 0 ? getRanking().slice(0, 8) : [];
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
+  const isManualMode = event.qualificationAdvanceMode === 'manual';
 
   return (
     <ScrollView
@@ -73,6 +89,59 @@ export const HostLocalMCView: React.FC = () => {
               NEXT: #{String(nextParticipant.number).padStart(2, '0')}{' '}
               {nextParticipant.name}
             </Text>
+          )}
+        </Box>
+      )}
+
+      {event.status === 'qualification' && (
+        <Box style={styles.card} p={20} gap={12} mb={20}>
+          <QualificationTimerDisplay
+            timer={qualificationTimer}
+            durationSeconds={event.qualificationDurationSeconds}
+          />
+          <Box direction="row" gap={8}>
+            <Box flex={1}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onPress={() => {
+                  void (
+                    qualificationTimer.status === 'paused'
+                      ? resumeQualificationTimer()
+                      : pauseQualificationTimer()
+                  );
+                }}
+                disabled={
+                  qualificationTimer.status !== 'running' &&
+                  qualificationTimer.status !== 'paused'
+                }
+              >
+                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
+              </Button>
+            </Box>
+            <Box flex={1}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onPress={() => {
+                  void restartQualificationTimer();
+                }}
+              >
+                RESTART
+              </Button>
+            </Box>
+          </Box>
+          {isManualMode && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              disabled={currentIndex >= participants.length - 1}
+              onPress={() => {
+                void advanceQualificationParticipant();
+              }}
+            >
+              NEXT PARTICIPANT
+            </Button>
           )}
         </Box>
       )}

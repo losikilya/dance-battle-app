@@ -2,7 +2,10 @@ import { Battle, BattleVote } from '../battle/types';
 import { DanceEvent } from '../event/types';
 import { Judge } from '../judge/types';
 import { Participant, CheckInStatus } from '../participant/types';
-import { QualificationScore } from '../qualification/types';
+import {
+  QualificationScore,
+  QualificationTimerState,
+} from '../qualification/types';
 
 export type AppEventMeta = {
   id: string;
@@ -13,6 +16,7 @@ export type QualificationStartedEvent = AppEventMeta & {
   type: 'qualification.started';
   payload: {
     currentParticipantIndex: number;
+    timer: QualificationTimerState;
   };
 };
 
@@ -74,6 +78,44 @@ export type QualificationParticipantChangedEvent = AppEventMeta & {
   type: 'qualification.participantChanged';
   payload: {
     participantIndex: number;
+    timer?: QualificationTimerState;
+  };
+};
+
+export type QualificationParticipantAdvancedEvent = AppEventMeta & {
+  type: 'qualification.participantAdvanced';
+  payload: {
+    participantIndex: number;
+    reason: 'manual' | 'automatic';
+    timer: QualificationTimerState;
+  };
+};
+
+export type QualificationTimerPausedEvent = AppEventMeta & {
+  type: 'qualification.timerPaused';
+  payload: {
+    timer: QualificationTimerState;
+  };
+};
+
+export type QualificationTimerResumedEvent = AppEventMeta & {
+  type: 'qualification.timerResumed';
+  payload: {
+    timer: QualificationTimerState;
+  };
+};
+
+export type QualificationTimerRestartedEvent = AppEventMeta & {
+  type: 'qualification.timerRestarted';
+  payload: {
+    timer: QualificationTimerState;
+  };
+};
+
+export type QualificationTimerExpiredEvent = AppEventMeta & {
+  type: 'qualification.timerExpired';
+  payload: {
+    timer: QualificationTimerState;
   };
 };
 
@@ -114,6 +156,11 @@ export type AppEvent =
   | NextRoundGeneratedEvent
   | EventResetEvent
   | QualificationParticipantChangedEvent
+  | QualificationParticipantAdvancedEvent
+  | QualificationTimerPausedEvent
+  | QualificationTimerResumedEvent
+  | QualificationTimerRestartedEvent
+  | QualificationTimerExpiredEvent
   | EventCreatedEvent
   | ParticipantAddedEvent
   | ParticipantRemovedEvent

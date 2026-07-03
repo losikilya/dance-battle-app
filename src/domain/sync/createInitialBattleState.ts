@@ -14,6 +14,13 @@ export function createInitialBattleState(): BattleAppState {
     battles: [],
     votes: [],
     currentQualificationParticipantIndex: 0,
+    qualificationTimer: {
+      status: 'idle',
+      participantId: null,
+      durationSeconds: 60,
+      endsAt: null,
+      remainingMsWhenPaused: null,
+    },
     activeBattleId: null,
     systemLogs: [],
   };

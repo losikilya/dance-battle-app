@@ -1,8 +1,10 @@
 import { create } from "zustand";
+import { AppState } from "react-native";
 
 import { Participant } from "@domain/participant/types";
 import {
   QualificationScore,
+  QualificationTimerState,
   RankedParticipant,
 } from "@domain/qualification/types";
 import { Battle, BattleVote } from "@domain/battle/types";
@@ -55,6 +57,12 @@ type DemoBattleComputed = {
   getChampionId: () => string | null;
 
   getCurrentQualificationParticipant: () => Participant | null;
+  getQualificationTimer: () => QualificationTimerState;
+  getQualificationTimerRemainingMs: (nowMs?: number) => number;
+  getQualificationTimingConfig: () => {
+    durationSeconds: number;
+    advanceMode: "manual" | "automatic";
+  };
   getScoresForCurrentParticipant: () => QualificationScore[];
   isCurrentParticipantScoredByAllJudges: () => boolean;
   isQualificationFinished: () => boolean;
@@ -68,6 +76,7 @@ type DemoBattleComputed = {
 
   canStartQualification: () => boolean;
   canGoToNextQualificationParticipant: () => boolean;
+  canManuallyAdvanceQualificationParticipant: () => boolean;
   canFinishQualification: () => boolean;
   canGenerateTop8: () => boolean;
   canStartBattle: (battleId: string) => boolean;
@@ -87,6 +96,8 @@ type CreateEventParams = {
   categoryTitle: string;
   format: BattleFormat;
   judgesCount: number;
+  qualificationDurationSeconds?: number;
+  qualificationAdvanceMode?: "manual" | "automatic";
 };
 
 export type HostDemoEventParams = {
@@ -95,6 +106,8 @@ export type HostDemoEventParams = {
   participantsCount?: number;
   judgesCount?: number;
   format?: BattleFormat;
+  qualificationDurationSeconds?: number;
+  qualificationAdvanceMode?: "manual" | "automatic";
 };
 
 type DemoBattleActions = {
@@ -116,6 +129,10 @@ type DemoBattleActions = {
   submitQualificationScore: (
     params: SubmitQualificationScoreParams,
   ) => Promise<void>;
+  pauseQualificationTimer: () => Promise<void>;
+  resumeQualificationTimer: () => Promise<void>;
+  restartQualificationTimer: () => Promise<void>;
+  advanceQualificationParticipant: () => Promise<void>;
   goToNextQualificationParticipant: () => Promise<void>;
   finishQualification: () => Promise<void>;
 
@@ -144,6 +161,7 @@ function pickBattleAppState(state: BattleAppState): BattleAppState {
     votes: state.votes,
     currentQualificationParticipantIndex:
       state.currentQualificationParticipantIndex,
+    qualificationTimer: state.qualificationTimer,
     activeBattleId: state.activeBattleId,
     systemLogs: state.systemLogs,
   };
@@ -185,6 +203,17 @@ function createHostDemoParticipant(
 
 export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
   let commandQueue: Promise<void> = Promise.resolve();
+  let qualificationTimerTimeout: ReturnType<typeof setTimeout> | null = null;
+  let appStateSubscriptionStarted = false;
+
+  const clearQualificationTimerTimeout = (): void => {
+    if (qualificationTimerTimeout !== null) {
+      clearTimeout(qualificationTimerTimeout);
+      qualificationTimerTimeout = null;
+    }
+  };
+
+  let scheduleQualificationTimerCoordinator = (): void => {};
 
   const applyEventsToStore = (events: AppEvent[]) => {
     set((state) => {
@@ -200,6 +229,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         storageError: null,
       };
     });
+    scheduleQualificationTimerCoordinator();
   };
 
   const enqueueOperation = <T>(operation: () => Promise<T>): Promise<T> => {
@@ -252,6 +282,81 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     await executePersistedCommand(command);
   };
 
+  const handleQualificationTimerExpired = async (): Promise<void> => {
+    const state = get();
+    const timer = state.qualificationTimer;
+
+    if (
+      state.event.status !== "qualification" ||
+      timer.status !== "running" ||
+      timer.participantId === null ||
+      timer.endsAt === null ||
+      Date.parse(timer.endsAt) > Date.now()
+    ) {
+      return;
+    }
+
+    const isLastParticipant =
+      state.currentQualificationParticipantIndex >=
+      state.participants.length - 1;
+
+    if (
+      state.event.qualificationAdvanceMode === "automatic" &&
+      !isLastParticipant
+    ) {
+      await executeCommand(
+        createCommand("qualification.advanceParticipant", {
+          reason: "automatic",
+          participantId: timer.participantId,
+        }),
+      );
+      return;
+    }
+
+    await executeCommand(
+      createCommand("qualification.timer.expire", {
+        participantId: timer.participantId,
+      }),
+    );
+  };
+
+  scheduleQualificationTimerCoordinator = (): void => {
+    clearQualificationTimerTimeout();
+
+    const state = get();
+    const timer = state.qualificationTimer;
+
+    if (
+      state.event.status !== "qualification" ||
+      timer.status !== "running" ||
+      timer.endsAt === null
+    ) {
+      return;
+    }
+
+    const delayMs = Math.max(0, Date.parse(timer.endsAt) - Date.now());
+
+    qualificationTimerTimeout = setTimeout(() => {
+      qualificationTimerTimeout = null;
+      void handleQualificationTimerExpired();
+    }, delayMs);
+  };
+
+  const startAppStateCoordinator = (): void => {
+    if (appStateSubscriptionStarted) {
+      return;
+    }
+
+    appStateSubscriptionStarted = true;
+    AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        scheduleQualificationTimerCoordinator();
+      }
+    });
+  };
+
+  startAppStateCoordinator();
+
   return {
     ...createInitialStoreState(),
 
@@ -270,6 +375,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           Math.floor(params.judgesCount ?? 1),
         );
         const format = params.format ?? "top8";
+        const qualificationDurationSeconds =
+          params.qualificationDurationSeconds ?? 60;
+        const qualificationAdvanceMode =
+          params.qualificationAdvanceMode ?? "manual";
 
         let nextState = pickBattleAppState(get());
         const nextEvents: AppEvent[] = [];
@@ -295,6 +404,8 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
             categoryTitle,
             format,
             judgesCount,
+            qualificationDurationSeconds,
+            qualificationAdvanceMode,
           }),
         );
 
@@ -325,6 +436,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
             isHydrated: true,
             isHydrating: false,
           });
+          scheduleQualificationTimerCoordinator();
         } catch (error) {
           const message =
             error instanceof Error
@@ -369,6 +481,31 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       const { participants, currentQualificationParticipantIndex } = get();
 
       return participants[currentQualificationParticipantIndex] ?? null;
+    },
+
+    getQualificationTimer: () => get().qualificationTimer,
+
+    getQualificationTimerRemainingMs: (nowMs = Date.now()) => {
+      const timer = get().qualificationTimer;
+
+      if (timer.status === "paused") {
+        return timer.remainingMsWhenPaused ?? 0;
+      }
+
+      if (timer.status !== "running" || timer.endsAt === null) {
+        return 0;
+      }
+
+      return Math.max(0, Date.parse(timer.endsAt) - nowMs);
+    },
+
+    getQualificationTimingConfig: () => {
+      const { event } = get();
+
+      return {
+        durationSeconds: event.qualificationDurationSeconds,
+        advanceMode: event.qualificationAdvanceMode,
+      };
     },
 
     getScoresForCurrentParticipant: () => {
@@ -444,13 +581,19 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     canGoToNextQualificationParticipant: () => {
-      const { participants, currentQualificationParticipantIndex } = get();
+      return get().canManuallyAdvanceQualificationParticipant();
+    },
+
+    canManuallyAdvanceQualificationParticipant: () => {
+      const { event, participants, currentQualificationParticipantIndex } = get();
 
       const isLastParticipant =
         currentQualificationParticipantIndex >= participants.length - 1;
 
       return (
-        !isLastParticipant && get().isCurrentParticipantScoredByAllJudges()
+        event.status === "qualification" &&
+        participants.length > 0 &&
+        !isLastParticipant
       );
     },
 
@@ -581,6 +724,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           isHydrated: true,
           isHydrating: false,
         });
+        scheduleQualificationTimerCoordinator();
       } catch (error) {
         set({
           storageError:
@@ -591,7 +735,14 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       }
     },
 
-    createEvent: async ({ title, categoryTitle, format, judgesCount }) => {
+    createEvent: async ({
+      title,
+      categoryTitle,
+      format,
+      judgesCount,
+      qualificationDurationSeconds,
+      qualificationAdvanceMode,
+    }) => {
       const previousEventId = get().event.id;
 
       await executeCommand(
@@ -600,6 +751,8 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           categoryTitle,
           format,
           judgesCount,
+          qualificationDurationSeconds,
+          qualificationAdvanceMode,
         }),
       );
 
@@ -640,10 +793,28 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
-    goToNextQualificationParticipant: async () => {
+    pauseQualificationTimer: async () => {
+      await executeCommand(createCommand("qualification.timer.pause", {}));
+    },
+
+    resumeQualificationTimer: async () => {
+      await executeCommand(createCommand("qualification.timer.resume", {}));
+    },
+
+    restartQualificationTimer: async () => {
+      await executeCommand(createCommand("qualification.timer.restart", {}));
+    },
+
+    advanceQualificationParticipant: async () => {
       await executeCommand(
-        createCommand("qualification.goToNextParticipant", {}),
+        createCommand("qualification.advanceParticipant", {
+          reason: "manual",
+        }),
       );
+    },
+
+    goToNextQualificationParticipant: async () => {
+      await get().advanceQualificationParticipant();
     },
 
     finishQualification: async () => {
@@ -695,6 +866,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         eventLog,
         lastCommandError: null,
       });
+      scheduleQualificationTimerCoordinator();
     },
 
     submitRandomVotesForBattle: async (battleId) => {
@@ -793,6 +965,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           storageError: null,
           lastCommandError: null,
         });
+        scheduleQualificationTimerCoordinator();
       } catch (error) {
         set({
           isHydrated: true,

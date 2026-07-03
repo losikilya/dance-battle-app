@@ -2,7 +2,10 @@ import { Battle, BattleVote } from '../battle/types';
 import { DanceEvent } from '../event/types';
 import { Judge } from '../judge/types';
 import { Participant } from '../participant/types';
-import { QualificationScore } from '../qualification/types';
+import {
+  QualificationScore,
+  QualificationTimerState,
+} from '../qualification/types';
 
 export type BattleAppState = {
   event: DanceEvent;
@@ -13,6 +16,7 @@ export type BattleAppState = {
   votes: BattleVote[];
 
   currentQualificationParticipantIndex: number;
+  qualificationTimer: QualificationTimerState;
   activeBattleId: string | null;
   systemLogs: string[];
 };

@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { Box, Button, Text } from '@components';
+import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
@@ -15,6 +15,8 @@ export const QualificationControlCard: React.FC = () => {
   const currentQualificationParticipantIndex = useDemoBattleStore(
     s => s.currentQualificationParticipantIndex,
   );
+  const qualificationTimer = useDemoBattleStore(s => s.qualificationTimer);
+  const event = useDemoBattleStore(s => s.event);
   const getCurrentQualificationParticipant = useDemoBattleStore(
     s => s.getCurrentQualificationParticipant,
   );
@@ -65,6 +67,11 @@ export const QualificationControlCard: React.FC = () => {
             .join(' · ')}
         </Text>
       </Box>
+
+      <QualificationTimerDisplay
+        timer={qualificationTimer}
+        durationSeconds={event.qualificationDurationSeconds}
+      />
 
       <Box gap={8}>
         <Text variant="body2" color="textSecondary">

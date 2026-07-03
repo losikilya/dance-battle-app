@@ -8,6 +8,7 @@ import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { BattleFormat } from '@domain/event/types';
 import type { AppRole } from '@domain/role/types';
+import type { QualificationAdvanceMode } from '@domain/qualification/types';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -36,13 +37,25 @@ export function CreateEventScreen() {
   const [categoryTitle, setCategoryTitle] = useState('');
   const [format, setFormat] = useState<BattleFormat>('top8');
   const [judgesCount, setJudgesCount] = useState('1');
+  const [qualificationDurationSeconds, setQualificationDurationSeconds] =
+    useState('60');
+  const [qualificationAdvanceMode, setQualificationAdvanceMode] =
+    useState<QualificationAdvanceMode>('manual');
   const [selfRunRoles, setSelfRunRoles] = useState<AppRole[]>([
     'host',
     'spectator',
     ...sessionRoles.filter(role => role === 'mc' || role === 'judge'),
   ]);
 
-  const canSubmit = title.trim().length > 0 && categoryTitle.trim().length > 0;
+  const parsedDuration = Number(qualificationDurationSeconds.trim());
+  const isDurationValid =
+    Number.isInteger(parsedDuration) &&
+    parsedDuration > 0 &&
+    parsedDuration <= 3600;
+  const canSubmit =
+    title.trim().length > 0 &&
+    categoryTitle.trim().length > 0 &&
+    isDurationValid;
 
   const toggleSelfRunRole = (role: AppRole) => {
     if (role === 'host' || role === 'spectator') {
@@ -64,6 +77,8 @@ export function CreateEventScreen() {
       categoryTitle: categoryTitle.trim(),
       format,
       judgesCount: parseInt(judgesCount, 10),
+      qualificationDurationSeconds: parsedDuration,
+      qualificationAdvanceMode,
     });
 
     setRole('host');
@@ -130,6 +145,37 @@ export function CreateEventScreen() {
           { label: '1', value: '1' },
           { label: '3', value: '3' },
           { label: '5', value: '5' },
+        ]}
+      />
+
+      <Box gap={8} mt={20} mb={8}>
+        <Text variant="body2" color="textSecondary">
+          QUALIFICATION DURATION (SECONDS)
+        </Text>
+        <TextInput
+          style={[styles.input, !isDurationValid && styles.inputError]}
+          value={qualificationDurationSeconds}
+          onChangeText={setQualificationDurationSeconds}
+          placeholder="60"
+          placeholderTextColor={Colors.text.secondary}
+          keyboardType="number-pad"
+        />
+        {!isDurationValid && (
+          <Text variant="body2" color="error">
+            Enter a whole number from 1 to 3600.
+          </Text>
+        )}
+      </Box>
+
+      <CardSelect
+        label="QUALIFICATION ADVANCE MODE"
+        value={qualificationAdvanceMode}
+        onChange={(value) =>
+          setQualificationAdvanceMode(value as QualificationAdvanceMode)
+        }
+        options={[
+          { label: 'MANUAL', value: 'manual' },
+          { label: 'AUTOMATIC', value: 'automatic' },
         ]}
       />
 
@@ -207,6 +253,9 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
     fontSize: 14,
     backgroundColor: Colors.dark.backgroundLight,
+  },
+  inputError: {
+    borderColor: Colors.text.error,
   },
   roleOption: {
     flexDirection: 'row',

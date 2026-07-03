@@ -23,6 +23,36 @@ export type GoToNextQualificationParticipantCommand = CommandMeta & {
   payload: Record<string, never>;
 };
 
+export type AdvanceQualificationParticipantCommand = CommandMeta & {
+  type: 'qualification.advanceParticipant';
+  payload: {
+    reason: 'manual' | 'automatic';
+    participantId?: string;
+  };
+};
+
+export type PauseQualificationTimerCommand = CommandMeta & {
+  type: 'qualification.timer.pause';
+  payload: Record<string, never>;
+};
+
+export type ResumeQualificationTimerCommand = CommandMeta & {
+  type: 'qualification.timer.resume';
+  payload: Record<string, never>;
+};
+
+export type RestartQualificationTimerCommand = CommandMeta & {
+  type: 'qualification.timer.restart';
+  payload: Record<string, never>;
+};
+
+export type ExpireQualificationTimerCommand = CommandMeta & {
+  type: 'qualification.timer.expire';
+  payload: {
+    participantId: string;
+  };
+};
+
 export type FinishQualificationCommand = CommandMeta & {
   type: 'qualification.finish';
   payload: Record<string, never>;
@@ -71,6 +101,8 @@ export type CreateEventCommand = CommandMeta & {
     categoryTitle: string;
     format: import('../event/types').BattleFormat;
     judgesCount: number;
+    qualificationDurationSeconds?: number;
+    qualificationAdvanceMode?: import('../qualification/types').QualificationAdvanceMode;
   };
 };
 
@@ -98,6 +130,11 @@ export type AppCommand =
   | StartQualificationCommand
   | SubmitQualificationScoreCommand
   | GoToNextQualificationParticipantCommand
+  | AdvanceQualificationParticipantCommand
+  | PauseQualificationTimerCommand
+  | ResumeQualificationTimerCommand
+  | RestartQualificationTimerCommand
+  | ExpireQualificationTimerCommand
   | FinishQualificationCommand
   | GenerateTop8Command
   | StartBattleCommand

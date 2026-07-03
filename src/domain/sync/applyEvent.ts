@@ -1,6 +1,8 @@
 import { BattleAppState } from "./appState";
 import { AppEvent } from "./appEvent";
 import { createInitialBattleState } from "./createInitialBattleState";
+import { DanceEvent } from "../event/types";
+import { QualificationTimerState } from "../qualification/types";
 
 function logEntry(message: string): string {
   const now = new Date();
@@ -8,6 +10,27 @@ function logEntry(message: string): string {
   const mm = String(now.getMinutes()).padStart(2, '0');
   const ss = String(now.getSeconds()).padStart(2, '0');
   return `[${hh}:${mm}:${ss}] ${message}`;
+}
+
+function normalizeEventConfig(event: DanceEvent): DanceEvent {
+  return {
+    ...event,
+    qualificationDurationSeconds:
+      event.qualificationDurationSeconds ?? 60,
+    qualificationAdvanceMode: event.qualificationAdvanceMode ?? 'manual',
+  };
+}
+
+function createIdleQualificationTimer(
+  durationSeconds: number,
+): QualificationTimerState {
+  return {
+    status: 'idle',
+    participantId: null,
+    durationSeconds,
+    endsAt: null,
+    remainingMsWhenPaused: null,
+  };
 }
 
 export function applyEvent(
@@ -20,10 +43,15 @@ export function applyEvent(
     }
 
     case "event.created": {
+      const eventConfig = normalizeEventConfig(event.payload.event);
+
       return {
         ...createInitialBattleState(),
-        event: event.payload.event,
+        event: eventConfig,
         judges: event.payload.judges,
+        qualificationTimer: createIdleQualificationTimer(
+          eventConfig.qualificationDurationSeconds,
+        ),
         systemLogs: [logEntry(`Event "${event.payload.event.title}" initialized.`)],
       };
     }
@@ -41,6 +69,11 @@ export function applyEvent(
         activeBattleId: null,
         currentQualificationParticipantIndex:
           event.payload.currentParticipantIndex,
+        qualificationTimer:
+          event.payload.timer ??
+          createIdleQualificationTimer(
+            state.event.qualificationDurationSeconds,
+          ),
         systemLogs: [...state.systemLogs, logEntry('Qualification started.')],
       };
     }
@@ -81,6 +114,9 @@ export function applyEvent(
           ...state.event,
           status: "qualification_finished",
         },
+        qualificationTimer: createIdleQualificationTimer(
+          state.event.qualificationDurationSeconds,
+        ),
         systemLogs: [...state.systemLogs, logEntry('Qualification finished.')],
       };
     }
@@ -207,6 +243,32 @@ export function applyEvent(
       return {
         ...state,
         currentQualificationParticipantIndex: event.payload.participantIndex,
+        qualificationTimer:
+          event.payload.timer ?? state.qualificationTimer,
+      };
+    }
+
+    case "qualification.participantAdvanced": {
+      return {
+        ...state,
+        currentQualificationParticipantIndex: event.payload.participantIndex,
+        qualificationTimer: event.payload.timer,
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(
+            `Qualification advanced (${event.payload.reason}) to participant ${event.payload.participantIndex + 1}.`,
+          ),
+        ],
+      };
+    }
+
+    case "qualification.timerPaused":
+    case "qualification.timerResumed":
+    case "qualification.timerRestarted":
+    case "qualification.timerExpired": {
+      return {
+        ...state,
+        qualificationTimer: event.payload.timer,
       };
     }
 

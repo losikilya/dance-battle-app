@@ -82,6 +82,10 @@ type JudgingClientActions = {
     battleId: string;
     winnerId: string;
   }) => void;
+  pauseQualificationTimer: () => void;
+  resumeQualificationTimer: () => void;
+  restartQualificationTimer: () => void;
+  advanceQualificationParticipant: () => void;
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
@@ -124,6 +128,29 @@ function getAssignedJudgeName(
   return (
     state.judges.find((judge) => judge.id === assignedJudgeId)?.name ?? null
   );
+}
+
+function getPendingQualificationParticipant(
+  state: BattleAppState,
+  judgeId: string,
+): Participant | null {
+  const currentIndex = state.currentQualificationParticipantIndex;
+
+  for (let index = 0; index <= currentIndex; index += 1) {
+    const participant = state.participants[index];
+
+    if (
+      participant &&
+      !state.scores.some(
+        score =>
+          score.participantId === participant.id && score.judgeId === judgeId,
+      )
+    ) {
+      return participant;
+    }
+  }
+
+  return state.participants[currentIndex] ?? null;
 }
 
 export const useJudgingClientStore = create<
@@ -474,10 +501,17 @@ export const useJudgingClientStore = create<
     pendingAddress: null,
 
     getCurrentQualificationParticipant: (): Participant | null => {
-      const syncedState = get().syncedState;
+      const { assignedJudgeId, syncedState } = get();
 
       if (!syncedState) {
         return null;
+      }
+
+      if (assignedJudgeId) {
+        return getPendingQualificationParticipant(
+          syncedState,
+          assignedJudgeId,
+        );
       }
 
       return (
@@ -576,10 +610,10 @@ export const useJudgingClientStore = create<
         return;
       }
 
-      const participant =
-        syncedState.participants[
-          syncedState.currentQualificationParticipantIndex
-        ];
+      const participant = getPendingQualificationParticipant(
+        syncedState,
+        assignedJudgeId,
+      );
 
       if (!participant) {
         set({
@@ -614,6 +648,26 @@ export const useJudgingClientStore = create<
           battleId,
           judgeId,
           winnerId,
+        }),
+      );
+    },
+
+    pauseQualificationTimer: (): void => {
+      sendCommand(createCommand('qualification.timer.pause', {}));
+    },
+
+    resumeQualificationTimer: (): void => {
+      sendCommand(createCommand('qualification.timer.resume', {}));
+    },
+
+    restartQualificationTimer: (): void => {
+      sendCommand(createCommand('qualification.timer.restart', {}));
+    },
+
+    advanceQualificationParticipant: (): void => {
+      sendCommand(
+        createCommand('qualification.advanceParticipant', {
+          reason: 'manual',
         }),
       );
     },

@@ -18,3 +18,4 @@ export * from "./Text";
 export * from "./TabBar";
 export * from "./Select";
 export * from "./RangeSlider";
+export * from "./QualificationTimerDisplay";

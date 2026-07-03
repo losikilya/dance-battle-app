@@ -15,6 +15,7 @@ import {
 import { DanceEvent } from '../event/types';
 import { Judge, JudgeRole } from '../judge/types';
 import { CheckInStatus, Participant } from '../participant/types';
+import { QualificationTimerState } from '../qualification/types';
 
 export function handleCommand(
   state: BattleAppState,
@@ -25,13 +26,32 @@ export function handleCommand(
       return handleResetEventCommand();
 
     case 'qualification.start':
-      return handleStartQualificationCommand(state);
+      return handleStartQualificationCommand(state, command);
 
     case 'qualification.submitScore':
       return handleSubmitQualificationScoreCommand(state, command);
 
     case 'qualification.goToNextParticipant':
-      return handleGoToNextQualificationParticipantCommand(state);
+      return handleAdvanceQualificationParticipantCommand(state, {
+        ...command,
+        type: 'qualification.advanceParticipant',
+        payload: { reason: 'manual' },
+      });
+
+    case 'qualification.advanceParticipant':
+      return handleAdvanceQualificationParticipantCommand(state, command);
+
+    case 'qualification.timer.pause':
+      return handlePauseQualificationTimerCommand(state, command);
+
+    case 'qualification.timer.resume':
+      return handleResumeQualificationTimerCommand(state, command);
+
+    case 'qualification.timer.restart':
+      return handleRestartQualificationTimerCommand(state, command);
+
+    case 'qualification.timer.expire':
+      return handleExpireQualificationTimerCommand(state, command);
 
     case 'qualification.finish':
       return handleFinishQualificationCommand(state);
@@ -74,6 +94,7 @@ function handleResetEventCommand(): CommandHandlerResult {
 
 function handleStartQualificationCommand(
   state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.start' }>,
 ): CommandHandlerResult {
   if (state.event.status !== 'draft') {
     return commandFailure(
@@ -96,9 +117,20 @@ function handleStartQualificationCommand(
     );
   }
 
+  const firstParticipant = state.participants[0];
+
+  if (!firstParticipant) {
+    return commandFailure('not_found', 'First participant was not found');
+  }
+
   return commandSuccess([
     createAppEvent('qualification.started', {
       currentParticipantIndex: 0,
+      timer: createRunningQualificationTimer(
+        firstParticipant.id,
+        state.event.qualificationDurationSeconds,
+        command.createdAt,
+      ),
     }),
   ]);
 }
@@ -145,21 +177,15 @@ function handleSubmitQualificationScoreCommand(
   ]);
 }
 
-function handleGoToNextQualificationParticipantCommand(
+function handleAdvanceQualificationParticipantCommand(
   state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.advanceParticipant' }>,
 ): CommandHandlerResult {
   if (state.event.status !== 'qualification') {
     return commandFailure(
       'invalid_status',
       'Participant can be changed only during qualification',
     );
-  }
-
-  const currentParticipant =
-    state.participants[state.currentQualificationParticipantIndex];
-
-  if (!currentParticipant) {
-    return commandFailure('not_found', 'Current participant was not found');
   }
 
   const isLastParticipant =
@@ -172,24 +198,169 @@ function handleGoToNextQualificationParticipantCommand(
     );
   }
 
-  const currentParticipantScores = state.scores.filter(
-    (score) => score.participantId === currentParticipant.id,
-  );
+  const currentParticipant =
+    state.participants[state.currentQualificationParticipantIndex];
 
-  const uniqueJudgeIds = new Set(
-    currentParticipantScores.map((score) => score.judgeId),
-  );
+  if (!currentParticipant) {
+    return commandFailure('not_found', 'Current participant was not found');
+  }
 
-  if (uniqueJudgeIds.size < state.judges.length) {
+  if (
+    command.payload.participantId !== undefined &&
+    command.payload.participantId !== currentParticipant.id
+  ) {
     return commandFailure(
       'action_not_allowed',
-      'All judges should score current participant before moving next',
+      'Timer is no longer active for this participant',
+    );
+  }
+
+  const nextParticipantIndex = state.currentQualificationParticipantIndex + 1;
+  const nextParticipant = state.participants[nextParticipantIndex];
+
+  if (!nextParticipant) {
+    return commandFailure('not_found', 'Next participant was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.participantAdvanced', {
+      participantIndex: nextParticipantIndex,
+      reason: command.payload.reason,
+      timer: createRunningQualificationTimer(
+        nextParticipant.id,
+        state.event.qualificationDurationSeconds,
+        command.createdAt,
+      ),
+    }),
+  ]);
+}
+
+function handlePauseQualificationTimerCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.timer.pause' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Timer can be paused only during qualification',
+    );
+  }
+
+  const timer = state.qualificationTimer;
+
+  if (timer.status !== 'running' || timer.endsAt === null) {
+    return commandFailure('action_not_allowed', 'Timer is not running');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.timerPaused', {
+      timer: {
+        ...timer,
+        status: 'paused',
+        endsAt: null,
+        remainingMsWhenPaused: Math.max(
+          0,
+          Date.parse(timer.endsAt) - Date.parse(command.createdAt),
+        ),
+      },
+    }),
+  ]);
+}
+
+function handleResumeQualificationTimerCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.timer.resume' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Timer can be resumed only during qualification',
+    );
+  }
+
+  const timer = state.qualificationTimer;
+
+  if (
+    timer.status !== 'paused' ||
+    timer.participantId === null ||
+    timer.remainingMsWhenPaused === null
+  ) {
+    return commandFailure('action_not_allowed', 'Timer is not paused');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.timerResumed', {
+      timer: {
+        ...timer,
+        status: 'running',
+        endsAt: new Date(
+          Date.parse(command.createdAt) + timer.remainingMsWhenPaused,
+        ).toISOString(),
+        remainingMsWhenPaused: null,
+      },
+    }),
+  ]);
+}
+
+function handleRestartQualificationTimerCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.timer.restart' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Timer can be restarted only during qualification',
+    );
+  }
+
+  const currentParticipant =
+    state.participants[state.currentQualificationParticipantIndex];
+
+  if (!currentParticipant) {
+    return commandFailure('not_found', 'Current participant was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.timerRestarted', {
+      timer: createRunningQualificationTimer(
+        currentParticipant.id,
+        state.event.qualificationDurationSeconds,
+        command.createdAt,
+      ),
+    }),
+  ]);
+}
+
+function handleExpireQualificationTimerCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.timer.expire' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Timer can expire only during qualification',
+    );
+  }
+
+  const timer = state.qualificationTimer;
+
+  if (
+    timer.status !== 'running' ||
+    timer.participantId !== command.payload.participantId
+  ) {
+    return commandFailure(
+      'action_not_allowed',
+      'Timer is not running for this participant',
     );
   }
 
   return commandSuccess([
-    createAppEvent('qualification.participantChanged', {
-      participantIndex: state.currentQualificationParticipantIndex + 1,
+    createAppEvent('qualification.timerExpired', {
+      timer: {
+        ...timer,
+        status: 'expired',
+        remainingMsWhenPaused: null,
+      },
     }),
   ]);
 }
@@ -466,13 +637,24 @@ function handleCreateEventCommand(
   _state: BattleAppState,
   command: Extract<AppCommand, { type: 'event.create' }>,
 ): CommandHandlerResult {
-  const { title, categoryTitle, format, judgesCount } = command.payload;
+  const {
+    title,
+    categoryTitle,
+    format,
+    judgesCount,
+    qualificationAdvanceMode,
+    qualificationDurationSeconds,
+  } = command.payload;
   const newEvent: DanceEvent = {
     id: createId('event'),
     title,
     categoryTitle,
     format,
     judgesCount,
+    qualificationDurationSeconds: normalizeQualificationDurationSeconds(
+      qualificationDurationSeconds,
+    ),
+    qualificationAdvanceMode: qualificationAdvanceMode ?? 'manual',
     status: 'draft',
     createdAt: new Date().toISOString(),
   };
@@ -548,4 +730,31 @@ function applyVoteToVotesList(
   }
 
   return [...votes, submittedVote];
+}
+
+function normalizeQualificationDurationSeconds(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 60;
+  }
+
+  return Math.max(1, Math.floor(value));
+}
+
+function createRunningQualificationTimer(
+  participantId: string,
+  durationSeconds: number,
+  startsAt: string,
+): QualificationTimerState {
+  const normalizedDurationSeconds =
+    normalizeQualificationDurationSeconds(durationSeconds);
+
+  return {
+    status: 'running',
+    participantId,
+    durationSeconds: normalizedDurationSeconds,
+    endsAt: new Date(
+      Date.parse(startsAt) + normalizedDurationSeconds * 1000,
+    ).toISOString(),
+    remainingMsWhenPaused: null,
+  };
 }

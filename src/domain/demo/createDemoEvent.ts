@@ -11,6 +11,8 @@ export function createDemoEvent(): DanceEvent {
     status: 'draft',
     format: 'top8',
     judgesCount: 1,
+    qualificationDurationSeconds: 60,
+    qualificationAdvanceMode: 'manual',
     createdAt: new Date().toISOString(),
   };
 }
