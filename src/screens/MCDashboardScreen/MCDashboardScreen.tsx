@@ -6,7 +6,7 @@ import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { calculateRanking } from '@domain/qualification/calculateRanking';
 import type { RankedParticipant } from '@domain/qualification/types';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,12 +20,14 @@ const STATUS_LABELS: Record<string, string> = {
 export const MCDashboardScreen: React.FC = () => {
   const router = useRouter();
   const syncedState = useJudgingClientStore(s => s.syncedState);
-  const getRanking = useDemoBattleStore(s => s.getRanking);
-  const demoParticipants = useDemoBattleStore(s => s.participants);
-  const demoScores = useDemoBattleStore(s => s.scores);
-  const ranking = useMemo(() => getRanking(), [getRanking, demoParticipants, demoScores]);
 
   const participants = syncedState?.participants ?? [];
+  const scores = syncedState?.scores ?? [];
+  const ranking = useMemo(
+    () => calculateRanking({ participants, scores }),
+    [participants, scores],
+  );
+
   const idx = syncedState?.currentQualificationParticipantIndex ?? 0;
   const currentParticipant = participants[idx] ?? null;
   const nextParticipant = participants[idx + 1] ?? null;
