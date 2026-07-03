@@ -1,4 +1,3 @@
-import * as Network from 'expo-network';
 import TcpSocket, {
   Socket as TcpSocketSocket,
 } from 'react-native-tcp-socket';
@@ -12,9 +11,11 @@ import type {
   JoinMessage,
 } from '@domain/sync/wsProtocol';
 import {
-  isUsableLanIpv4Address,
-  type ParsedHostAddress,
+  validateAdvertisedHost,
+  type HostAddressCandidate,
+  type HostAddressSource,
 } from '../../infrastructure/network/connectionAddress';
+import { resolveAdvertisedHost } from '../../infrastructure/network/hostAddressResolver';
 import { createId } from '../../shared/lib/createId';
 import { useDemoBattleStore } from '../demoBattle/useDemoBattleStore';
 import { useSessionStore } from '../session/useSessionStore';
@@ -33,6 +34,8 @@ export type HostConnectionInfo = {
   host: string;
   port: number;
   address: string;
+  interfaceName: string | null;
+  source: HostAddressSource;
 };
 
 type JudgingServerState = {
@@ -44,12 +47,18 @@ type JudgingServerState = {
   lastError: string | null;
   error: string | null;
   connectionInfo: HostConnectionInfo | null;
+  hostAddressCandidates: HostAddressCandidate[];
+  manualHostOverride: string | null;
 };
 
 type JudgingServerActions = {
   startServer: () => Promise<void>;
   stopServer: () => void;
   restartServer: () => Promise<void>;
+  refreshHostAddress: () => Promise<void>;
+  selectAdvertisedHost: (host: string) => void;
+  setManualHostOverride: (host: string) => void;
+  clearManualHostOverride: () => Promise<void>;
   broadcastState: () => void;
 };
 
@@ -64,19 +73,18 @@ let unsubscribeFromEventLog: (() => void) | null = null;
 let lastBroadcastEventIndex = 0;
 const BIND_HOST = '0.0.0.0';
 
-async function getLanConnectionInfo(
+function createConnectionInfo(
+  host: string,
   port: number,
-): Promise<ParsedHostAddress | null> {
-  const ip = (await Network.getIpAddressAsync()).trim();
-
-  if (!isUsableLanIpv4Address(ip)) {
-    return null;
-  }
-
+  interfaceName: string | null,
+  source: HostAddressSource,
+): HostConnectionInfo {
   return {
-    host: ip,
+    host,
     port,
-    address: `${ip}:${port}`,
+    address: `${host}:${port}`,
+    interfaceName,
+    source,
   };
 }
 
@@ -136,6 +144,67 @@ function isCommandLike(value: unknown): value is AppCommand {
 export const useJudgingServerStore = create<
   JudgingServerState & JudgingServerActions
 >((set, get) => {
+  const applyAdvertisedHost = (
+    host: string,
+    interfaceName: string | null,
+    source: HostAddressSource,
+  ): void => {
+    const port = get().port;
+    const connectionInfo = createConnectionInfo(
+      host,
+      port,
+      interfaceName,
+      source,
+    );
+
+    set({
+      hostIp: host,
+      localIp: host,
+      connectionInfo,
+      lastError: null,
+      error: null,
+    });
+  };
+
+  const refreshHostAddress = async (): Promise<void> => {
+    const manualHostOverride = get().manualHostOverride;
+    const selection = await resolveAdvertisedHost();
+
+    set({ hostAddressCandidates: selection.candidates });
+
+    if (manualHostOverride) {
+      applyAdvertisedHost(manualHostOverride, null, 'manual-override');
+      return;
+    }
+
+    if (selection.selectedHost) {
+      applyAdvertisedHost(
+        selection.selectedHost,
+        selection.selectedInterfaceName,
+        selection.selectedSource ?? 'android-interface',
+      );
+      console.log('[judging-server] advertised host selected', {
+        host: selection.selectedHost,
+        interfaceName: selection.selectedInterfaceName,
+        source: selection.selectedSource,
+        candidates: selection.candidates,
+      });
+      return;
+    }
+
+    set({
+      hostIp: null,
+      localIp: null,
+      connectionInfo: null,
+      lastError:
+        'No usable LAN IPv4 address is available yet. Refresh after enabling Wi-Fi or Host hotspot.',
+      error: null,
+    });
+    console.log('[judging-server] no advertised host candidate', {
+      candidates: selection.candidates,
+    });
+  };
+
   const writeMessage = (
     socket: TcpSocketSocket,
     message: HostMessage,
@@ -578,6 +647,8 @@ export const useJudgingServerStore = create<
     lastError: null,
     error: null,
     connectionInfo: null,
+    hostAddressCandidates: [],
+    manualHostOverride: null,
 
     startServer: async (): Promise<void> => {
       if (get().status === 'running' || get().status === 'starting') {
@@ -588,19 +659,6 @@ export const useJudgingServerStore = create<
 
       try {
         const port = get().port;
-        const connectionInfo = await getLanConnectionInfo(port);
-        const lanIp = connectionInfo?.host ?? null;
-        set({
-          hostIp: lanIp,
-          localIp: lanIp,
-          connectionInfo,
-          lastError:
-            connectionInfo === null
-              ? 'No usable LAN IPv4 address is available. Connect both devices to the same Wi-Fi or hotspot.'
-              : null,
-          error: null,
-        });
-
         tcpServer = TcpSocket.createServer(onClientConnect);
         await new Promise<void>((resolve, reject) => {
           const handleError = (error: Error): void => {
@@ -610,7 +668,6 @@ export const useJudgingServerStore = create<
           tcpServer?.on('error', handleError);
           console.log('[judging-server] start', {
             bindAddress: BIND_HOST,
-            lanIp,
             port,
           });
           tcpServer?.listen({ port, host: BIND_HOST }, () => {
@@ -629,17 +686,16 @@ export const useJudgingServerStore = create<
             error: message,
           });
         });
-        set((state) => ({
+        set({
           status: 'running',
-          lastError: state.connectionInfo === null ? state.lastError : null,
           error: null,
-        }));
+        });
         console.log('[judging-server] listening', {
           bindAddress: BIND_HOST,
-          lanIp,
           port,
         });
         startEventLogBroadcasting();
+        await refreshHostAddress();
       } catch (error) {
         stopEventLogBroadcasting();
         tcpServer?.close();
@@ -663,7 +719,13 @@ export const useJudgingServerStore = create<
       clientSockets.clear();
       tcpServer?.close();
       tcpServer = null;
-      set({ status: 'idle', connectedClients: [] });
+      set({
+        status: 'idle',
+        connectedClients: [],
+        connectionInfo: null,
+        hostIp: null,
+        localIp: null,
+      });
     },
 
     broadcastState: (): void => {
@@ -693,6 +755,47 @@ export const useJudgingServerStore = create<
 
       set({ status: 'idle' });
       await get().startServer();
+    },
+
+    refreshHostAddress,
+
+    selectAdvertisedHost: (host): void => {
+      const candidate = get().hostAddressCandidates.find(
+        item => item.host === host,
+      );
+
+      if (!candidate) {
+        set({
+          lastError: 'Selected address is not available from current candidates',
+          error: null,
+        });
+        return;
+      }
+
+      set({ manualHostOverride: null });
+      applyAdvertisedHost(
+        candidate.host,
+        candidate.interfaceName,
+        candidate.source,
+      );
+    },
+
+    setManualHostOverride: (host): void => {
+      const result = validateAdvertisedHost(host);
+
+      if (!result.ok) {
+        set({ lastError: result.error, error: null });
+        return;
+      }
+
+      const overrideHost = result.value.host;
+      set({ manualHostOverride: overrideHost });
+      applyAdvertisedHost(overrideHost, null, 'manual-override');
+    },
+
+    clearManualHostOverride: async (): Promise<void> => {
+      set({ manualHostOverride: null });
+      await refreshHostAddress();
     },
   };
 });

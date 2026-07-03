@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '@constants/Colors';
@@ -137,6 +138,34 @@ const styles = StyleSheet.create({
     flex: 1,
     color: Colors.secondary.light,
   },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    color: Colors.text.primary,
+    fontSize: 14,
+    backgroundColor: Colors.dark.background,
+  },
+  candidateList: {
+    gap: 10,
+  },
+  candidateRow: {
+    backgroundColor: Colors.dark.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    padding: 12,
+    gap: 10,
+  },
+  selectedCandidateRow: {
+    borderColor: Colors.primary.main,
+  },
+  compactButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
   deviceHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -186,12 +215,36 @@ export const JudgingAdminScreen: React.FC = () => {
   const connectionInfo = useJudgingServerStore((state) => state.connectionInfo);
   const lastError = useJudgingServerStore((state) => state.lastError);
   const serverPort = useJudgingServerStore((state) => state.port);
+  const hostAddressCandidates = useJudgingServerStore(
+    (state) => state.hostAddressCandidates,
+  );
+  const manualHostOverride = useJudgingServerStore(
+    (state) => state.manualHostOverride,
+  );
   const port = connectionInfo?.port ?? serverPort;
   const connectedClients = useJudgingServerStore((state) => state.connectedClients);
   const restartServer = useJudgingServerStore((state) => state.restartServer);
+  const refreshHostAddress = useJudgingServerStore(
+    (state) => state.refreshHostAddress,
+  );
+  const selectAdvertisedHost = useJudgingServerStore(
+    (state) => state.selectAdvertisedHost,
+  );
+  const setManualHostOverride = useJudgingServerStore(
+    (state) => state.setManualHostOverride,
+  );
+  const clearManualHostOverride = useJudgingServerStore(
+    (state) => state.clearManualHostOverride,
+  );
   const event = useDemoBattleStore((state) => state.event);
+  const [manualHostInput, setManualHostInput] = useState(
+    manualHostOverride ?? '',
+  );
 
   const displayHost = connectionInfo?.host ?? '...';
+  const displaySource = connectionInfo
+    ? `${connectionInfo.source}${connectionInfo.interfaceName ? ` / ${connectionInfo.interfaceName}` : ''}`
+    : 'No advertised address';
   const qrValue = connectionInfo
     ? createQrPayload(connectionInfo.host, connectionInfo.port)
     : null;
@@ -239,6 +292,59 @@ export const JudgingAdminScreen: React.FC = () => {
             </View>
           </Box>
 
+          <InfoCard label="Address source" value={displaySource} />
+
+          <Box direction="row" gap={12}>
+            <View style={styles.infoCardWrapper}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                onPress={() => {
+                  void refreshHostAddress();
+                }}
+              >
+                Refresh address
+              </Button>
+            </View>
+            <View style={styles.infoCardWrapper}>
+              <Button
+                variant="outlined"
+                color="secondary"
+                disabled={manualHostOverride === null}
+                onPress={() => {
+                  setManualHostInput('');
+                  void clearManualHostOverride();
+                }}
+              >
+                Auto select
+              </Button>
+            </View>
+          </Box>
+
+          <Box gap={8}>
+            <Text variant="body2" color="textSecondary">
+              Manual advertised IP
+            </Text>
+            <TextInput
+              style={styles.input}
+              value={manualHostInput}
+              onChangeText={setManualHostInput}
+              placeholder="192.168.1.10"
+              placeholderTextColor={Colors.text.secondary}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+            />
+            <Button
+              variant="outlined"
+              color="secondary"
+              onPress={() => {
+                setManualHostOverride(manualHostInput);
+              }}
+            >
+              Use manual IP
+            </Button>
+          </Box>
+
           <View style={styles.warning}>
             <Ionicons name="warning-outline" size={22} color={Colors.error.main} />
             <Text variant="body" style={styles.warningText}>
@@ -246,6 +352,47 @@ export const JudgingAdminScreen: React.FC = () => {
               {lastError ? ` ${lastError}` : ''}
             </Text>
           </View>
+
+          <Box gap={12}>
+            <Text variant="bodyBold">Address diagnostics</Text>
+            <View style={styles.candidateList}>
+              {hostAddressCandidates.length === 0 ? (
+                <Text variant="body2" color="textSecondary">
+                  No native interface candidates discovered.
+                </Text>
+              ) : (
+                hostAddressCandidates.map((candidate) => {
+                  const isSelected = candidate.host === connectionInfo?.host;
+
+                  return (
+                    <View
+                      key={`${candidate.source}:${candidate.interfaceName ?? 'expo'}:${candidate.host}`}
+                      style={[
+                        styles.candidateRow,
+                        isSelected && styles.selectedCandidateRow,
+                      ]}
+                    >
+                      <Box gap={2}>
+                        <Text variant="bodyBold">{candidate.host}</Text>
+                        <Text variant="body2" color="textSecondary">
+                          {`${candidate.interfaceName ?? 'expo-network'} / ${candidate.source}${candidate.isPrivate ? ' / private' : ''}${candidate.isPreferredInterface ? ' / preferred' : ''}`}
+                        </Text>
+                      </Box>
+                      <Button
+                        style={styles.compactButton}
+                        variant="outlined"
+                        color="secondary"
+                        disabled={isSelected && manualHostOverride === null}
+                        onPress={() => selectAdvertisedHost(candidate.host)}
+                      >
+                        Use address
+                      </Button>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          </Box>
         </View>
 
         <View style={styles.card}>

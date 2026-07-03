@@ -25,11 +25,7 @@ export default function TabLayout(): React.JSX.Element {
           return {
             headerStyle: { backgroundColor: Colors.dark.background, height: 0 },
             tabBarStyle: {
-              ...(Platform.OS === IOS
-                ? {
-                    backgroundColor: "transparent",
-                  }
-                : {}),
+              backgroundColor: "transparent",
               height: windowHeight * 0.1,
               borderTopColor: "transparent",
               paddingTop: 12,

@@ -183,6 +183,8 @@ State:
 - `connectedClients`
 - `lastError`
 - `connectionInfo`
+- `hostAddressCandidates`
+- `manualHostOverride`
 
 `connectionInfo` is either `null` or:
 
@@ -191,6 +193,8 @@ State:
   host: string;
   port: number;
   address: string;
+  interfaceName: string | null;
+  source: 'expo-network' | 'android-interface' | 'manual-override';
 }
 ```
 
@@ -199,6 +203,10 @@ Actions:
 - `startServer()`
 - `stopServer()`
 - `restartServer()`
+- `refreshHostAddress()` refreshes the advertised address without restarting TCP
+- `selectAdvertisedHost(host)` selects one discovered candidate
+- `setManualHostOverride(host)` manually overrides only the advertised IP
+- `clearManualHostOverride()` returns to automatic address selection
 - `broadcastState()` for manual recovery snapshots
 
 The server automatically broadcasts newly appended Host events. Screens do not
@@ -247,9 +255,11 @@ Host-assigned judge ID before sending the command.
 
 ## Local TCP Connection
 
-Both devices must be connected to the same Wi-Fi network or the same phone
-hotspot. The Host listens on `0.0.0.0`, but UI must display and share the
-usable LAN IPv4 address, not `0.0.0.0`, `127.0.0.1`, or `localhost`.
+Both devices must be connected to the same Wi-Fi network or to the Host phone's
+hotspot. The Host TCP server always binds to `0.0.0.0:<port>`, but the
+advertised address is selected separately for screen display and QR generation.
+UI must display and share a usable LAN/private IPv4 address, not `0.0.0.0`,
+`127.0.0.1`, or `localhost`.
 
 Host `connectionInfo` is the source of truth for display and QR generation:
 
@@ -258,11 +268,35 @@ Host `connectionInfo` is the source of truth for display and QR generation:
   host: '192.168.1.10',
   port: 8080,
   address: '192.168.1.10:8080',
+  interfaceName: 'wlan0',
+  source: 'android-interface',
 }
 ```
 
-If no usable LAN IPv4 address is available, Host UI should show a warning and
-must not encode a QR payload with localhost or the bind address.
+Address selection priority is:
+
+1. usable Expo `expo-network` LAN IPv4
+2. Android native network-interface candidates from Wi-Fi/hotspot-like
+   interfaces (`wlan`, `wifi`, `ap`, `softap`, `swlan`)
+3. other private IPv4 candidates, including `10.x.x.x`, `172.16-31.x.x`,
+   `192.168.x.x`, and `100.64.0.0/10`
+4. no advertised address
+
+The Android native resolver enumerates
+`java.net.NetworkInterface.getNetworkInterfaces()` and returns active
+non-loopback IPv4 addresses with interface name, address, `isLoopback`, and
+`isUp`. It ignores IPv6, `0.0.0.0`, `127.x.x.x`, loopback, VPN/tun-style
+interfaces, and obvious cellular interfaces when possible.
+
+The server may start successfully before an advertised address is found. If no
+usable IPv4 address is available, Host UI should show a warning and must not
+encode a QR payload with localhost or the bind address. Host UI can call
+`refreshHostAddress()` after enabling Wi-Fi or hotspot.
+
+If multiple valid candidates are discovered, Host UI may call
+`selectAdvertisedHost(host)`. `setManualHostOverride(host)` allows a validated
+IPv4 override for display and QR generation. Overrides do not change the TCP
+bind address.
 
 The QR payload format is JSON:
 
@@ -288,7 +322,12 @@ whitespace, accepts IPv4 addresses or hostnames, requires a port from `1` to
 The TCP transport uses `react-native-tcp-socket`, so it requires a native
 Android build or Expo development build. It will not work in Expo Go. Android
 requires `INTERNET`; `ACCESS_NETWORK_STATE` is also configured for network
-state/IP diagnostics.
+state/IP diagnostics. After native module changes, rebuild the Android native
+app, for example:
+
+```bash
+npm run android
+```
 
 The Judge selectors read only from `syncedState`. They return `null` when there
 is no current participant or active battle. `getParticipantName(...)` returns
