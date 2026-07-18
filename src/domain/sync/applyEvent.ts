@@ -2,7 +2,10 @@ import { BattleAppState } from "./appState";
 import { AppEvent } from "./appEvent";
 import { createInitialBattleState } from "./createInitialBattleState";
 import { DanceEvent } from "../event/types";
-import { QualificationTimerState } from "../qualification/types";
+import {
+  QualificationScore,
+  QualificationTimerState,
+} from "../qualification/types";
 
 function logEntry(message: string): string {
   const now = new Date();
@@ -31,6 +34,30 @@ function createIdleQualificationTimer(
     endsAt: null,
     remainingMsWhenPaused: null,
   };
+}
+
+function applyQualificationScore(
+  scores: QualificationScore[],
+  submittedScore: QualificationScore,
+): QualificationScore[] {
+  const existingScore = scores.find(
+    (score) =>
+      score.participantId === submittedScore.participantId &&
+      score.judgeId === submittedScore.judgeId,
+  );
+
+  if (existingScore) {
+    return scores.map((score) =>
+      score.id === existingScore.id
+        ? {
+            ...score,
+            score: submittedScore.score,
+          }
+        : score,
+    );
+  }
+
+  return [...scores, submittedScore];
 }
 
 export function applyEvent(
@@ -79,31 +106,9 @@ export function applyEvent(
     }
 
     case "qualification.scoreSubmitted": {
-      const submittedScore = event.payload;
-
-      const existingScore = state.scores.find(
-        (score) =>
-          score.participantId === submittedScore.participantId &&
-          score.judgeId === submittedScore.judgeId,
-      );
-
-      if (existingScore) {
-        return {
-          ...state,
-          scores: state.scores.map((score) =>
-            score.id === existingScore.id
-              ? {
-                  ...score,
-                  score: submittedScore.score,
-                }
-              : score,
-          ),
-        };
-      }
-
       return {
         ...state,
-        scores: [...state.scores, submittedScore],
+        scores: applyQualificationScore(state.scores, event.payload),
       };
     }
 
@@ -257,6 +262,52 @@ export function applyEvent(
           ...state.systemLogs,
           logEntry(
             `Qualification advanced (${event.payload.reason}) to participant ${event.payload.participantIndex + 1}.`,
+          ),
+        ],
+      };
+    }
+
+    case "qualification.participantMarkedAbsent": {
+      const nextScores = event.payload.scores.reduce(
+        applyQualificationScore,
+        state.scores,
+      );
+
+      return {
+        ...state,
+        scores: nextScores,
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(
+            `Participant ${event.payload.participantId} marked absent.`,
+          ),
+        ],
+      };
+    }
+
+    case "qualification.participantMovedToEnd": {
+      const participant = state.participants.find(
+        item => item.id === event.payload.participantId,
+      );
+
+      if (!participant) {
+        return state;
+      }
+
+      return {
+        ...state,
+        participants: [
+          ...state.participants.filter(
+            item => item.id !== event.payload.participantId,
+          ),
+          participant,
+        ],
+        currentQualificationParticipantIndex: event.payload.participantIndex,
+        qualificationTimer: event.payload.timer,
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(
+            `Participant ${event.payload.participantId} moved to the end of qualification.`,
           ),
         ],
       };

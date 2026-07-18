@@ -155,6 +155,8 @@ export const resources = {
   mc_photo_placeholder: 'PHOTO',
   mc_prepare_deck: 'PREPARE DECK',
   mc_progress_label: 'PROGRESS',
+  mc_participant_absent: 'Участник отсутствует',
+  mc_participant_late: 'Опаздывает',
   mc_remaining: 'REMAINING',
   mc_stage_prefix: 'STAGE:',
   mc_stamina: 'STAMINA',

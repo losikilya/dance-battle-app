@@ -9,17 +9,25 @@ import { calculateRanking } from '@domain/qualification/calculateRanking';
 import { RankingRow } from './RankingRow';
 
 export const RankingsScreen: React.FC = () => {
-  const { state, isHost } = useBattleState();
+  const { event, isHost, isReady, participants, scores } = useBattleState();
   const generateTop8 = useDemoBattleStore(s => s.generateTop8);
   const canGenerateTop8 = useDemoBattleStore(s => s.canGenerateTop8);
 
-  const participants = state?.participants ?? [];
-  const scores = state?.scores ?? [];
   const ranking = calculateRanking({ participants, scores });
 
   const avgScore = ranking.length > 0
     ? ranking.reduce((sum, r) => sum + r.averageScore, 0) / ranking.length
     : 0;
+
+  if (!isReady) {
+    return (
+      <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
+        <Text variant="body2" color="textSecondary" centered>
+          Waiting for Host ranking...
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <ScrollView
@@ -38,7 +46,7 @@ export const RankingsScreen: React.FC = () => {
 
       <Box mb={16}>
         <Text variant="body2" color="textSecondary">
-          {getResource('ranking_description_prefix')} {state?.event.categoryTitle ?? '—'}{getResource('ranking_description_suffix')}
+          {getResource('ranking_description_prefix')} {event?.categoryTitle ?? '—'}{getResource('ranking_description_suffix')}
         </Text>
       </Box>
 

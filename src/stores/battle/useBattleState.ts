@@ -2,14 +2,35 @@ import { useSessionStore } from "@stores/session/useSessionStore";
 import { useDemoBattleStore } from "@stores/demoBattle/useDemoBattleStore";
 import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
 import type { BattleAppState } from "@domain/sync/appState";
+import type { Battle } from "@domain/battle/types";
+import type { DanceEvent } from "@domain/event/types";
+import type { Judge } from "@domain/judge/types";
+import type { Participant } from "@domain/participant/types";
+import type {
+  QualificationScore,
+  QualificationTimerState,
+} from "@domain/qualification/types";
 
 export type BattleStateResult = {
   state: BattleAppState | null;
   isHost: boolean;
+  isRemote: boolean;
+  source: 'host' | 'remote';
+  isReady: boolean;
+  missingState: boolean;
+  event: DanceEvent | null;
+  participants: Participant[];
+  judges: Judge[];
+  scores: QualificationScore[];
+  battles: Battle[];
+  votes: BattleAppState['votes'];
+  currentQualificationParticipantIndex: number;
+  activeBattleId: string | null;
+  qualificationTimer: QualificationTimerState | null;
 };
 
-export function useBattleState(): BattleStateResult {
-  const isHost = useSessionStore((s) => s.roles.includes('host'));
+export function useVisibleBattleState(): BattleStateResult {
+  const isHost = useSessionStore((s) => s.hasRole('host'));
 
   const event = useDemoBattleStore((s) => s.event);
   const participants = useDemoBattleStore((s) => s.participants);
@@ -38,5 +59,29 @@ export function useBattleState(): BattleStateResult {
     systemLogs,
   };
 
-  return { state: isHost ? hostState : syncedState, isHost };
+  const visibleState = isHost ? hostState : syncedState;
+  const isRemote = !isHost;
+
+  return {
+    state: visibleState,
+    isHost,
+    isRemote,
+    source: isHost ? 'host' : 'remote',
+    isReady: visibleState !== null,
+    missingState: visibleState === null,
+    event: visibleState?.event ?? null,
+    participants: visibleState?.participants ?? [],
+    judges: visibleState?.judges ?? [],
+    scores: visibleState?.scores ?? [],
+    battles: visibleState?.battles ?? [],
+    votes: visibleState?.votes ?? [],
+    currentQualificationParticipantIndex:
+      visibleState?.currentQualificationParticipantIndex ?? 0,
+    activeBattleId: visibleState?.activeBattleId ?? null,
+    qualificationTimer: visibleState?.qualificationTimer ?? null,
+  };
+}
+
+export function useBattleState(): BattleStateResult {
+  return useVisibleBattleState();
 }

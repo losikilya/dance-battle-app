@@ -14,8 +14,8 @@ export const HostLocalJudgeView: React.FC = () => {
   const [pendingVote, setPendingVote] = useState<string | null>(null);
 
   const hasJudgeRole = useSessionStore(state => state.hasRole('judge'));
+  const hasHostRole = useSessionStore(state => state.hasRole('host'));
   const selfJudgeId = useSessionStore(state => state.selfJudgeId);
-  const role = useSessionStore(state => state.role);
   const event = useDemoBattleStore(state => state.event);
   const participants = useDemoBattleStore(state => state.participants);
   const judges = useDemoBattleStore(state => state.judges);
@@ -129,7 +129,7 @@ export const HostLocalJudgeView: React.FC = () => {
             ? getJudgeDisplayName({
                 judgeId: selfJudge.id,
                 judgeName: selfJudge.name,
-                role,
+                isHost: hasHostRole,
                 selfJudgeId,
               })
             : 'Host'}

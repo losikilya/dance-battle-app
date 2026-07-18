@@ -1,17 +1,15 @@
-import type { AppRole } from '@domain/role/types';
-
 type GetJudgeDisplayNameParams = {
   judgeId: string;
   judgeName: string;
-  role: AppRole | null;
+  isHost: boolean;
   selfJudgeId: string | null;
 };
 
 export function getJudgeDisplayName({
   judgeId,
   judgeName,
-  role,
+  isHost,
   selfJudgeId,
 }: GetJudgeDisplayNameParams): string {
-  return role === 'host' && judgeId === selfJudgeId ? 'Host' : judgeName;
+  return isHost && judgeId === selfJudgeId ? 'Host' : judgeName;
 }

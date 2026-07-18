@@ -3,7 +3,7 @@
 UI code should read store state and call the public actions below. Screens should
 not create `AppCommand` or apply `AppEvent` directly.
 
-## Session and Self-Run Roles
+## Session Roles and Active Views
 
 Import:
 
@@ -11,13 +11,10 @@ Import:
 import { useSessionStore } from '@stores/session/useSessionStore';
 ```
 
-`role` remains the primary device role used by existing routing and networking.
-It is not replaced by self-run mode.
+Session state:
 
-Additional self-run state:
-
-- `roles`: local duties enabled for the current session
-- `activeViewRole`: the Host dashboard view currently displayed
+- `roles`: local permissions/duties enabled for the current session
+- `activeViewRole`: the local role view currently displayed
 - `selfJudgeId`: the Host judge identity used for local scoring and voting
 
 Actions:
@@ -25,15 +22,53 @@ Actions:
 - `setRoles(roles)`
 - `toggleRole(role)`
 - `hasRole(role)`
+- `isHost()`
+- `isJudge()`
+- `isMC()`
+- `isSpectator()`
 - `setActiveViewRole(role | null)`
 - `setSelfJudgeId(judgeId | null)`
+- `clearSession()`
+- `resetSession()`
 
-When `role === 'host'`, `roles` always includes both `host` and `spectator`.
-Those two duties cannot be removed. MC and Judge duties are optional.
+`roles` is the single source of truth for local permissions and routing. A Host
+session always includes both `host` and `spectator`; those two duties cannot be
+removed through `toggleRole`. Host may also include `mc` and/or `judge`.
+Remote sessions use one role in the array: `judge`, `mc`, or `spectator`.
 
-Changing `activeViewRole` changes only the local Host presentation. It does not
-change `role`, start a client connection, or affect TCP messages. The Host
-remains authoritative in every local view.
+App-level session reset should also stop the Host server and disconnect the
+Judging client before clearing `roles`, `activeViewRole`, and `selfJudgeId`.
+This prevents stale Host TCP listeners and stale remote connection roles from
+surviving a role change.
+
+`activeViewRole` controls which local view is shown. Changing it does not start
+a client connection or affect TCP messages. The Host remains authoritative in
+every Host-local view.
+
+Network join still uses a single connection role. The TCP join payload and
+`connectToHost({ role: 'judge' | 'mc' | 'spectator', ... })` keep their
+existing `role` field. UI should pass that role explicitly from the selected
+remote role or current remote `activeViewRole`, not from local session state.
+
+Role selection writes session state as:
+
+```ts
+// Host
+setRoles(['host', 'spectator']);
+setActiveViewRole('host');
+
+// Remote Judge
+setRoles(['judge']);
+setActiveViewRole('judge');
+
+// Remote MC
+setRoles(['mc']);
+setActiveViewRole('mc');
+
+// Remote Spectator
+setRoles(['spectator']);
+setActiveViewRole('spectator');
+```
 
 When a Host creates an event with the Judge self-role enabled,
 `selfJudgeId` is assigned to the first Judge created by the Host event command.
@@ -50,6 +85,24 @@ same assignment rule.
 Create Event UI also collects `qualificationDurationSeconds` and
 `qualificationAdvanceMode`. Duration should be validated as a positive
 reasonable integer before calling `createEvent(params)`.
+The `/create-event` route is Host-only: no-role sessions are redirected to
+discovery, and remote Judge/MC/Spectator sessions are redirected back to the
+main tabs instead of being promoted into Host by direct navigation.
+
+## Shared Battle Read Model
+
+Shared Brackets, Rankings, and Battle Result screens should read visible event
+state through `useBattleState()` / `useVisibleBattleState()` from
+`@stores/battle/useBattleState`.
+
+- Host sessions read from `useDemoBattleStore`.
+- Remote Judge, MC, and Spectator sessions read from
+  `useJudgingClientStore.syncedState`.
+- Remote shared screens are read-only and must not show Host controls such as
+  participant/admin CTAs, battle start, open voting, mock votes, generate next
+  round, generate Top 8, or manual broadcast/recovery actions.
+- If remote `syncedState` is missing, shared screens should show a waiting or
+  connect state instead of falling back to local Host store data.
 
 ## Host Battle Store
 
@@ -104,6 +157,8 @@ Actions:
 - `resumeQualificationTimer()`
 - `restartQualificationTimer()`
 - `advanceQualificationParticipant()`
+- `markCurrentParticipantAbsent()`
+- `moveCurrentParticipantToEnd()`
 - `submitQualificationScore({ participantId, judgeId, score })`
 - `goToNextQualificationParticipant()`
 - `finishQualification()`
@@ -124,6 +179,8 @@ from the Host battle store. It advances and finishes qualification through:
 - `getScoresForCurrentParticipant()`
 - `canManuallyAdvanceQualificationParticipant()`
 - `advanceQualificationParticipant()`
+- `markCurrentParticipantAbsent()`
+- `moveCurrentParticipantToEnd()`
 - `canFinishQualification()`
 - `finishQualification()`
 
@@ -170,9 +227,20 @@ MC timer controls use the public timer actions:
 - Remote MC reads `useJudgingClientStore` synced state and calls the matching
   client actions.
 - The Host server permits MC clients to send only timer pause, timer resume,
-  timer restart, and participant advance commands.
+  timer restart, participant advance, participant absent, and participant late
+  commands.
 - MC Next is shown only in manual qualification mode. Automatic mode follows
   the Host timer coordinator.
+- MC Absent records zero scores for all judges through its own domain
+  command/event path. Normal Judge score submission remains validated as `1..10`.
+- MC Late moves the current qualification participant to the end of the queue
+  and restarts the qualification timer for the next current participant. Late
+  and manual Next are unavailable for the last participant.
+- MC Absent and Late commands are participant-specific. Store actions include
+  the visible/current `participantId` in the command payload, and the Host
+  rejects the command if that participant no longer matches the Host-current
+  qualification participant. This prevents stale remote MC screens from
+  affecting the wrong participant.
 
 ### Battle Lifecycle
 
@@ -188,13 +256,18 @@ voting remains locked until the Host opens it.
 ### Host Self-Run Views
 
 The Host dashboard provides local Host Control, MC, Judge, and Spectator views.
-The primary session `role` stays `host` while switching between them.
+`activeViewRole` switches between these views, while `roles` controls which
+local duties are enabled.
 
 - Host Control reads and changes `useDemoBattleStore`.
 - Host MC and Spectator views are read-only and read `useDemoBattleStore`.
 - Host Judge view reads `useDemoBattleStore` and uses `selfJudgeId`.
 - Remote Judge, MC, and Spectator screens continue to use
   `useJudgingClientStore`.
+
+In Create Event self-run options, Host and Spectator are always checked and
+disabled. MC and Judge are optional. The selected self-run options update the
+session `roles` array; no session `role` is used.
 
 Host local Judge submissions do not use TCP. When Judge self-role is enabled
 and `selfJudgeId` is available, the UI calls:
@@ -304,6 +377,8 @@ Actions:
 - `resumeQualificationTimer()`
 - `restartQualificationTimer()`
 - `advanceQualificationParticipant()`
+- `markCurrentParticipantAbsent()`
+- `moveCurrentParticipantToEnd()`
 - `requestSnapshot()`
 
 Selectors:
@@ -443,6 +518,9 @@ submitScore(8);
 
 - Host dashboard, participants, qualification administration, rankings,
   brackets, and results use `useDemoBattleStore`.
+- Remote shared rankings, brackets, and results use synced Host state from
+  `useJudgingClientStore.syncedState` through `useBattleState()` and remain
+  read-only.
 - Host server status, QR/manual connection details, and connected-device lists
   use `useJudgingServerStore`.
 - Judge connection, qualification scoring, battle voting, and remote read-only

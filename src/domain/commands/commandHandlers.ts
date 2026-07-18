@@ -41,6 +41,12 @@ export function handleCommand(
     case 'qualification.advanceParticipant':
       return handleAdvanceQualificationParticipantCommand(state, command);
 
+    case 'qualification.markParticipantAbsent':
+      return handleMarkQualificationParticipantAbsentCommand(state, command);
+
+    case 'qualification.moveParticipantToEnd':
+      return handleMoveQualificationParticipantToEndCommand(state, command);
+
     case 'qualification.timer.pause':
       return handlePauseQualificationTimerCommand(state, command);
 
@@ -226,6 +232,104 @@ function handleAdvanceQualificationParticipantCommand(
     createAppEvent('qualification.participantAdvanced', {
       participantIndex: nextParticipantIndex,
       reason: command.payload.reason,
+      timer: createRunningQualificationTimer(
+        nextParticipant.id,
+        state.event.qualificationDurationSeconds,
+        command.createdAt,
+      ),
+    }),
+  ]);
+}
+
+function handleMarkQualificationParticipantAbsentCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.markParticipantAbsent' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Participant can be marked absent only during qualification',
+    );
+  }
+
+  const currentParticipant =
+    state.participants[state.currentQualificationParticipantIndex];
+
+  if (!currentParticipant) {
+    return commandFailure('not_found', 'Current participant was not found');
+  }
+
+  if (command.payload.participantId !== currentParticipant.id) {
+    return commandFailure(
+      'action_not_allowed',
+      'Participant is no longer current for qualification',
+    );
+  }
+
+  if (state.judges.length === 0) {
+    return commandFailure('not_enough_data', 'At least one judge is required');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.participantMarkedAbsent', {
+      participantId: currentParticipant.id,
+      scores: state.judges.map((judge) => ({
+        id: createId('score'),
+        participantId: currentParticipant.id,
+        judgeId: judge.id,
+        score: 0,
+        createdAt: command.createdAt,
+      })),
+    }),
+  ]);
+}
+
+function handleMoveQualificationParticipantToEndCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'qualification.moveParticipantToEnd' }>,
+): CommandHandlerResult {
+  if (state.event.status !== 'qualification') {
+    return commandFailure(
+      'invalid_status',
+      'Participant can be moved only during qualification',
+    );
+  }
+
+  const currentParticipant =
+    state.participants[state.currentQualificationParticipantIndex];
+
+  if (!currentParticipant) {
+    return commandFailure('not_found', 'Current participant was not found');
+  }
+
+  if (command.payload.participantId !== currentParticipant.id) {
+    return commandFailure(
+      'action_not_allowed',
+      'Participant is no longer current for qualification',
+    );
+  }
+
+  const isLastParticipant =
+    state.currentQualificationParticipantIndex >= state.participants.length - 1;
+
+  if (isLastParticipant) {
+    return commandFailure(
+      'action_not_allowed',
+      'Current participant is the last participant',
+    );
+  }
+
+  const nextParticipant =
+    state.participants[state.currentQualificationParticipantIndex + 1];
+
+  if (!nextParticipant) {
+    return commandFailure('not_found', 'Next participant was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('qualification.participantMovedToEnd', {
+      participantId: currentParticipant.id,
+      participantIndex: state.currentQualificationParticipantIndex,
       timer: createRunningQualificationTimer(
         nextParticipant.id,
         state.event.qualificationDurationSeconds,

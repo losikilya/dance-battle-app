@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { Box, Text, Button, QualificationTimerDisplay } from '@components';
+import { Box, Text, Button, IconButton, QualificationTimerDisplay } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
@@ -32,6 +33,12 @@ export const MCDashboardScreen: React.FC = () => {
   const advanceQualificationParticipant = useJudgingClientStore(
     s => s.advanceQualificationParticipant,
   );
+  const markCurrentParticipantAbsent = useJudgingClientStore(
+    s => s.markCurrentParticipantAbsent,
+  );
+  const moveCurrentParticipantToEnd = useJudgingClientStore(
+    s => s.moveCurrentParticipantToEnd,
+  );
 
   const participants = syncedState?.participants ?? [];
   const scores = syncedState?.scores ?? [];
@@ -50,6 +57,18 @@ export const MCDashboardScreen: React.FC = () => {
   const event = syncedState?.event ?? null;
   const top8 = ranking.slice(0, 8);
   const isManualMode = event?.qualificationAdvanceMode === 'manual';
+  const isQualificationActive =
+    eventStatus === 'qualification' && currentParticipant !== null;
+  const isLastParticipant = idx >= participants.length - 1;
+  const canUseParticipantActions = isQualificationActive;
+  const canMoveLate = canUseParticipantActions && !isLastParticipant;
+  const canPauseResume =
+    qualificationTimer?.status === 'running' ||
+    qualificationTimer?.status === 'paused';
+  const canRestart = isQualificationActive && qualificationTimer !== null;
+  const canAdvance =
+    isQualificationActive && isManualMode && !isLastParticipant;
+  const isTimerPaused = qualificationTimer?.status === 'paused';
 
   return (
     <ScrollView
@@ -128,39 +147,67 @@ export const MCDashboardScreen: React.FC = () => {
               <Button
                 variant="outlined"
                 color="secondary"
-                onPress={
-                  qualificationTimer.status === 'paused'
-                    ? resumeQualificationTimer
-                    : pauseQualificationTimer
-                }
-                disabled={
-                  qualificationTimer.status !== 'running' &&
-                  qualificationTimer.status !== 'paused'
-                }
+                onPress={markCurrentParticipantAbsent}
+                disabled={!canUseParticipantActions}
               >
-                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
+                {getResource('mc_participant_absent')}
               </Button>
             </Box>
             <Box flex={1}>
               <Button
                 variant="outlined"
                 color="secondary"
-                onPress={restartQualificationTimer}
+                onPress={moveCurrentParticipantToEnd}
+                disabled={!canMoveLate}
               >
-                RESTART
+                {getResource('mc_participant_late')}
               </Button>
             </Box>
           </Box>
-          {isManualMode && (
-            <Button
-              variant="outlined"
-              color="secondary"
-              onPress={advanceQualificationParticipant}
-              disabled={idx >= participants.length - 1}
+
+          <Box direction="row" justify="center" align="center" gap={24}>
+            <IconButton
+              variant="contained"
+              style={[styles.smallTransportButton, !canRestart && styles.disabledControl]}
+              onPress={canRestart ? restartQualificationTimer : undefined}
             >
-              NEXT PARTICIPANT
-            </Button>
-          )}
+              <Ionicons
+                name="refresh"
+                size={22}
+                color={canRestart ? Colors.text.primary : Colors.text.secondary}
+              />
+            </IconButton>
+            <IconButton
+              variant="contained"
+              style={[styles.primaryTransportButton, !canPauseResume && styles.disabledControl]}
+              onPress={
+                canPauseResume
+                  ? isTimerPaused
+                    ? resumeQualificationTimer
+                    : pauseQualificationTimer
+                  : undefined
+                }
+            >
+              <Ionicons
+                name={isTimerPaused ? 'play' : 'pause'}
+                size={30}
+                color={Colors.dark.background}
+              />
+            </IconButton>
+            {isManualMode && (
+              <IconButton
+                variant="contained"
+                style={[styles.smallTransportButton, !canAdvance && styles.disabledControl]}
+                onPress={canAdvance ? advanceQualificationParticipant : undefined}
+              >
+                <Ionicons
+                  name="play-skip-forward"
+                  size={22}
+                  color={canAdvance ? Colors.text.primary : Colors.text.secondary}
+                />
+              </IconButton>
+            )}
+          </Box>
         </Box>
       )}
 
@@ -290,6 +337,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
+  },
+  smallTransportButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderColor: Colors.border.subtle,
+    backgroundColor: Colors.dark.background,
+  },
+  primaryTransportButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderColor: 'transparent',
+    backgroundColor: Colors.primary.main,
+  },
+  disabledControl: {
+    opacity: 0.45,
   },
   avatarCircle: {
     width: 48,

@@ -15,7 +15,7 @@ const PAGE_SIZE = 20;
 
 export const ParticipantsScreen: React.FC = () => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
+  const hasHostRole = useSessionStore(s => s.hasRole('host'));
   const participants = useDemoBattleStore(s => s.participants);
   const event = useDemoBattleStore(s => s.event);
   const addParticipant = useDemoBattleStore(s => s.addParticipant);
@@ -29,10 +29,10 @@ export const ParticipantsScreen: React.FC = () => {
   const [addCity, setAddCity] = useState('');
 
   useEffect(() => {
-    if (role !== 'host') {
+    if (!hasHostRole) {
       router.replace('/(auth)/role-selection');
     }
-  }, [role, router]);
+  }, [hasHostRole, router]);
 
   const presentCount = participants.filter(p => p.checkIn === 'present').length;
   const checkInPercent = participants.length > 0 ? (presentCount / participants.length) * 100 : 0;

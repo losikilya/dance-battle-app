@@ -133,6 +133,8 @@ type DemoBattleActions = {
   resumeQualificationTimer: () => Promise<void>;
   restartQualificationTimer: () => Promise<void>;
   advanceQualificationParticipant: () => Promise<void>;
+  markCurrentParticipantAbsent: () => Promise<void>;
+  moveCurrentParticipantToEnd: () => Promise<void>;
   goToNextQualificationParticipant: () => Promise<void>;
   finishQualification: () => Promise<void>;
 
@@ -809,6 +811,34 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       await executeCommand(
         createCommand("qualification.advanceParticipant", {
           reason: "manual",
+        }),
+      );
+    },
+
+    markCurrentParticipantAbsent: async () => {
+      const currentParticipant = get().getCurrentQualificationParticipant();
+
+      if (!currentParticipant) {
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.markParticipantAbsent", {
+          participantId: currentParticipant.id,
+        }),
+      );
+    },
+
+    moveCurrentParticipantToEnd: async () => {
+      const currentParticipant = get().getCurrentQualificationParticipant();
+
+      if (!currentParticipant) {
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.moveParticipantToEnd", {
+          participantId: currentParticipant.id,
         }),
       );
     },

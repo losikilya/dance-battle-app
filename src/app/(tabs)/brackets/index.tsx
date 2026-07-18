@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Alert } from 'react-native';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useBattleState } from '@stores/battle/useBattleState';
 import { BracketScreen } from '@screens/BracketScreen';
 import { RankingsScreen } from '@screens/RankingsScreen';
 import { Box, Text, Button } from '@components';
@@ -10,7 +10,17 @@ import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 
-function BracketsEmptyState(): React.JSX.Element {
+function BracketsWaitingState(): React.JSX.Element {
+  return (
+    <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
+      <Text variant="body2" color="textSecondary" centered>
+        Waiting for Host state...
+      </Text>
+    </Box>
+  );
+}
+
+function BracketsEmptyState({ isHost }: { isHost: boolean }): React.JSX.Element {
   const router = useRouter();
   return (
     <Box
@@ -34,18 +44,20 @@ function BracketsEmptyState(): React.JSX.Element {
         </Text>
       </Box>
 
-      <Box gap={12}>
-        <Button onPress={() => { router.push('/participants'); }}>
-          {getResource('brackets_empty_add')}
-        </Button>
-        <Button
-          variant="outlined"
-          color="secondary"
-          onPress={() => { Alert.alert('Coming soon'); }}
-        >
-          {getResource('brackets_empty_import')}
-        </Button>
-      </Box>
+      {isHost && (
+        <Box gap={12}>
+          <Button onPress={() => { router.push('/participants'); }}>
+            {getResource('brackets_empty_add')}
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            onPress={() => { Alert.alert('Coming soon'); }}
+          >
+            {getResource('brackets_empty_import')}
+          </Button>
+        </Box>
+      )}
 
       <Box style={styles.featureCard} p={16} gap={6}>
         <Text variant="bodyBold">
@@ -69,11 +81,15 @@ function BracketsEmptyState(): React.JSX.Element {
 }
 
 export default function BracketsTab(): React.JSX.Element {
-  const eventStatus = useDemoBattleStore(s => s.event.status);
-  const participants = useDemoBattleStore(s => s.participants);
+  const { event, participants, isHost, isReady } = useBattleState();
+  const eventStatus = event?.status ?? 'draft';
+
+  if (!isReady) {
+    return <BracketsWaitingState />;
+  }
 
   if (participants.length === 0) {
-    return <BracketsEmptyState />;
+    return <BracketsEmptyState isHost={isHost} />;
   }
 
   if (eventStatus === 'qualification_finished') {

@@ -9,9 +9,9 @@ const windowHeight = Dimensions.get("window").height;
 const IOS = "ios";
 
 export default function TabLayout(): React.JSX.Element {
-  const role = useSessionStore((s) => s.role);
+  const roles = useSessionStore((s) => s.roles);
 
-  if (!role) {
+  if (roles.length === 0) {
     return <Redirect href="/(auth)/discovery" />;
   }
 

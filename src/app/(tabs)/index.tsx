@@ -3,26 +3,32 @@ import { Box, Text, Button } from "@components";
 import Colors from "@constants/Colors";
 import { getResource } from "@resources";
 import { useSessionStore } from "@stores/session/useSessionStore";
+import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
+import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useRouter } from "expo-router";
 
 export default function DashboardTab(): React.JSX.Element {
-  const role = useSessionStore((s) => s.role);
-  const setRole = useSessionStore((s) => s.setRole);
+  const activeViewRole = useSessionStore((s) => s.activeViewRole);
+  const hasHostRole = useSessionStore((s) => s.hasRole("host"));
+  const resetSession = useSessionStore((s) => s.resetSession);
   const router = useRouter();
 
   const handleResetRole = () => {
-    setRole(null);
+    useJudgingServerStore.getState().stopServer();
+    useJudgingClientStore.getState().disconnect();
+    useJudgingClientStore.getState().setPendingAddress(null);
+    resetSession();
     router.replace("/(auth)/role-selection");
   };
 
-  if (role === "host") {
+  if (hasHostRole) {
     return <HostDashboardScreen onResetRole={handleResetRole} />;
   }
 
   const hint =
-    role === "judge"
+    activeViewRole === "judge"
       ? getResource("dashboard_judge_hint")
-      : role === "mc"
+      : activeViewRole === "mc"
         ? getResource("dashboard_mc_placeholder")
         : getResource("dashboard_spectator_placeholder");
 

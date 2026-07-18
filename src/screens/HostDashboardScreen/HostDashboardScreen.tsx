@@ -32,7 +32,7 @@ type Props = {
 
 export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
+  const hasHostRole = useSessionStore(s => s.hasRole('host'));
   const activeViewRole = useSessionStore(s => s.activeViewRole ?? 'host');
   const hasJudgeRole = useSessionStore(s => s.hasRole('judge'));
   const setSelfJudgeId = useSessionStore(s => s.setSelfJudgeId);
@@ -48,10 +48,10 @@ export const HostDashboardScreen: React.FC<Props> = ({ onResetRole }) => {
   const connectedClients = useJudgingServerStore(s => s.connectedClients);
 
   useEffect(() => {
-    if (role !== 'host') {
+    if (!hasHostRole) {
       router.replace('/(auth)/role-selection');
     }
-  }, [role, router]);
+  }, [hasHostRole, router]);
 
   const onlineClients = connectedClients.filter(c => c.isOnline);
   const onlineJudges = connectedClients.filter(c => c.role === 'judge' && c.isOnline);

@@ -4,11 +4,15 @@ import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { Battle } from '@domain/battle/types';
+import type { BattleVote } from '@domain/battle/types';
+import type { Participant } from '@domain/participant/types';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
 
 type BattleCardProps = {
   battle: Battle;
+  isHost: boolean;
+  participants: Participant[];
+  votes: BattleVote[];
 };
 
 type ParticipantVoteRowProps = {
@@ -31,26 +35,30 @@ const ParticipantVoteRow: React.FC<ParticipantVoteRowProps> = ({ name, votes, is
   </Box>
 );
 
-export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
+export const BattleCard: React.FC<BattleCardProps> = ({
+  battle,
+  isHost,
+  participants,
+  votes,
+}) => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
-  const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
-  const getVotesForBattle = useDemoBattleStore(s => s.getVotesForBattle);
   const startBattle = useDemoBattleStore(s => s.startBattle);
   const openBattleVoting = useDemoBattleStore(s => s.openBattleVoting);
   const canStartBattle = useDemoBattleStore(s => s.canStartBattle);
   const canOpenBattleVoting = useDemoBattleStore(s => s.canOpenBattleVoting);
   const submitRandomVotesForBattle = useDemoBattleStore(s => s.submitRandomVotesForBattle);
 
-  const votes = getVotesForBattle(battle.id);
-  const votesA = votes.filter(v => v.winnerId === battle.participantAId).length;
-  const votesB = votes.filter(v => v.winnerId === battle.participantBId).length;
-  const nameA = getParticipantName(battle.participantAId);
-  const nameB = getParticipantName(battle.participantBId);
+  const battleVotes = votes.filter(v => v.battleId === battle.id);
+  const votesA = battleVotes.filter(v => v.winnerId === battle.participantAId).length;
+  const votesB = battleVotes.filter(v => v.winnerId === battle.participantBId).length;
+  const nameA =
+    participants.find(participant => participant.id === battle.participantAId)
+      ?.name ?? 'Unknown';
+  const nameB =
+    participants.find(participant => participant.id === battle.participantBId)
+      ?.name ?? 'Unknown';
 
   const isFinished = battle.status === 'finished';
-  const isHost = role === 'host';
-
   const statusLabel = isFinished
     ? getResource('bracket_status_winner')
     : battle.status === 'pending'

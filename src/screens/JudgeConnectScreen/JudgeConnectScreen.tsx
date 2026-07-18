@@ -13,6 +13,10 @@ import { useSessionStore } from "@stores/session/useSessionStore";
 import type { ClientRole } from "@domain/sync/wsProtocol";
 import { parseManualAddress } from "../../infrastructure/network/connectionAddress";
 
+function isClientRole(role: unknown): role is ClientRole {
+  return role === "judge" || role === "mc" || role === "spectator";
+}
+
 export const JudgeConnectScreen: React.FC = () => {
   const status = useJudgingClientStore((s) => s.status);
   const lastError = useJudgingClientStore((s) => s.lastError);
@@ -25,12 +29,15 @@ export const JudgeConnectScreen: React.FC = () => {
   const connectionInfo = useJudgingServerStore((s) => s.connectionInfo);
   const serverStatus = useJudgingServerStore((s) => s.status);
 
-  const sessionRole = useSessionStore((s) => s.role);
+  const activeViewRole = useSessionStore((s) => s.activeViewRole);
+  const roles = useSessionStore((s) => s.roles);
   const requestedJudgeId = useSessionStore((s) => s.judgeId);
   const judgeName = useSessionStore((s) => s.judgeName);
   const setJudgeName = useSessionStore((s) => s.setJudgeName);
 
-  const clientRole: ClientRole = (sessionRole as ClientRole) ?? 'judge';
+  const clientRole: ClientRole = isClientRole(activeViewRole)
+    ? activeViewRole
+    : roles.find(isClientRole) ?? "judge";
 
   const [address, setAddress] = useState(pendingAddress ?? serverAddress ?? "");
   const [name, setName] = useState(judgeName ?? "");

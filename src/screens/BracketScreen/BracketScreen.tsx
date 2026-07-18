@@ -19,12 +19,25 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 };
 
 export const BracketScreen: React.FC = () => {
-  const { state, isHost } = useBattleState();
+  const {
+    isHost,
+    isReady,
+    participants,
+    battles,
+    votes,
+  } = useBattleState();
   const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
   const generateNextRound = useDemoBattleStore(s => s.generateNextRound);
 
-  const battles = state?.battles ?? [];
-  const participants = state?.participants ?? [];
+  if (!isReady) {
+    return (
+      <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
+        <Text variant="body2" color="textSecondary" centered>
+          Waiting for Host state...
+        </Text>
+      </Box>
+    );
+  }
 
   const activeBattleParticipants = battles.filter(
     b => b.status === 'active' || b.status === 'voting'
@@ -61,7 +74,13 @@ export const BracketScreen: React.FC = () => {
           <Box key={round} mb={24} gap={12}>
             <Text variant="body2" color="textSecondary" centered>{ROUND_LABELS[round]}</Text>
             {roundBattles.map(battle => (
-              <BattleCard key={battle.id} battle={battle} />
+              <BattleCard
+                key={battle.id}
+                battle={battle}
+                isHost={isHost}
+                participants={participants}
+                votes={votes}
+              />
             ))}
           </Box>
         );

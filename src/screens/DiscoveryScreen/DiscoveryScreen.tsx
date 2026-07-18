@@ -19,7 +19,8 @@ const ROLE_LABELS: Record<ClientRole, string> = {
 
 export const DiscoveryScreen: React.FC = () => {
   const router = useRouter();
-  const setRole = useSessionStore(s => s.setRole);
+  const setRoles = useSessionStore(s => s.setRoles);
+  const setActiveViewRole = useSessionStore(s => s.setActiveViewRole);
   const serverStatus = useJudgingServerStore(s => s.status);
   const connectionInfo = useJudgingServerStore(s => s.connectionInfo);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
@@ -28,13 +29,15 @@ export const DiscoveryScreen: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<ClientRole>('judge');
 
   const handleCreateEvent = () => {
-    setRole('host');
+    setRoles(['host', 'spectator']);
+    setActiveViewRole('host');
     router.replace('/(tabs)');
   };
 
   const handleJoinLocal = () => {
     if (connectionInfo === null) return;
-    setRole(selectedRole);
+    setRoles([selectedRole]);
+    setActiveViewRole(selectedRole);
     connectToHost({
       host: connectionInfo.host,
       port: connectionInfo.port,

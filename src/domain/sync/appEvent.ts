@@ -91,6 +91,23 @@ export type QualificationParticipantAdvancedEvent = AppEventMeta & {
   };
 };
 
+export type QualificationParticipantMarkedAbsentEvent = AppEventMeta & {
+  type: 'qualification.participantMarkedAbsent';
+  payload: {
+    participantId: string;
+    scores: QualificationScore[];
+  };
+};
+
+export type QualificationParticipantMovedToEndEvent = AppEventMeta & {
+  type: 'qualification.participantMovedToEnd';
+  payload: {
+    participantId: string;
+    participantIndex: number;
+    timer: QualificationTimerState;
+  };
+};
+
 export type QualificationTimerPausedEvent = AppEventMeta & {
   type: 'qualification.timerPaused';
   payload: {
@@ -157,6 +174,8 @@ export type AppEvent =
   | EventResetEvent
   | QualificationParticipantChangedEvent
   | QualificationParticipantAdvancedEvent
+  | QualificationParticipantMarkedAbsentEvent
+  | QualificationParticipantMovedToEndEvent
   | QualificationTimerPausedEvent
   | QualificationTimerResumedEvent
   | QualificationTimerRestartedEvent

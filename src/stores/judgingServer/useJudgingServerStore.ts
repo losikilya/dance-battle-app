@@ -155,12 +155,14 @@ function isJudgeCommand(
   );
 }
 
-function isMcTimerCommand(command: AppCommand): boolean {
+function isMcQualificationControlCommand(command: AppCommand): boolean {
   return (
     command.type === 'qualification.timer.pause' ||
     command.type === 'qualification.timer.resume' ||
     command.type === 'qualification.timer.restart' ||
-    command.type === 'qualification.advanceParticipant'
+    command.type === 'qualification.advanceParticipant' ||
+    command.type === 'qualification.markParticipantAbsent' ||
+    command.type === 'qualification.moveParticipantToEnd'
   );
 }
 
@@ -502,11 +504,11 @@ export const useJudgingServerStore = create<
     const command = message.command;
 
     if (client.role === 'mc') {
-      if (!isMcTimerCommand(command)) {
+      if (!isMcQualificationControlCommand(command)) {
         sendError(
           socket,
           'action_not_allowed',
-          'MC can control only qualification timer and participant advance',
+          'MC can control only qualification timer and participant flow',
           message.messageId,
         );
         return;

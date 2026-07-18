@@ -13,12 +13,16 @@ import { StatusBanner } from "./StatusBanner";
 
 export const RoleSelectionScreen: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<AppRole | null>(null);
-  const setRole = useSessionStore((s) => s.setRole);
+  const setRoles = useSessionStore((s) => s.setRoles);
+  const setActiveViewRole = useSessionStore((s) => s.setActiveViewRole);
   const pendingAddress = useJudgingClientStore((s) => s.pendingAddress);
 
   const handleConfirm = () => {
     if (!selectedRole) return;
-    setRole(selectedRole);
+    setRoles(
+      selectedRole === "host" ? ["host", "spectator"] : [selectedRole],
+    );
+    setActiveViewRole(selectedRole);
 
     if (pendingAddress && selectedRole === "judge") {
       router.replace("/(tabs)/judging");

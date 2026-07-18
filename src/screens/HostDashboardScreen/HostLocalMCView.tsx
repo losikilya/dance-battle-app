@@ -1,7 +1,9 @@
 import { ScrollView, StyleSheet } from 'react-native';
-import { Box, Button, QualificationTimerDisplay, Text } from '@components';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Box, Button, IconButton, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
 export const HostLocalMCView: React.FC = () => {
@@ -28,6 +30,12 @@ export const HostLocalMCView: React.FC = () => {
   const advanceQualificationParticipant = useDemoBattleStore(
     state => state.advanceQualificationParticipant,
   );
+  const markCurrentParticipantAbsent = useDemoBattleStore(
+    state => state.markCurrentParticipantAbsent,
+  );
+  const moveCurrentParticipantToEnd = useDemoBattleStore(
+    state => state.moveCurrentParticipantToEnd,
+  );
   const getRanking = useDemoBattleStore(state => state.getRanking);
   const getChampionId = useDemoBattleStore(state => state.getChampionId);
 
@@ -39,6 +47,17 @@ export const HostLocalMCView: React.FC = () => {
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
   const isManualMode = event.qualificationAdvanceMode === 'manual';
+  const isQualificationActive =
+    event.status === 'qualification' && currentParticipant !== null;
+  const isLastParticipant = currentIndex >= participants.length - 1;
+  const canMoveLate = isQualificationActive && !isLastParticipant;
+  const canPauseResume =
+    qualificationTimer.status === 'running' ||
+    qualificationTimer.status === 'paused';
+  const canRestart = isQualificationActive;
+  const canAdvance =
+    isQualificationActive && isManualMode && !isLastParticipant;
+  const isTimerPaused = qualificationTimer.status === 'paused';
 
   return (
     <ScrollView
@@ -105,18 +124,11 @@ export const HostLocalMCView: React.FC = () => {
                 variant="outlined"
                 color="secondary"
                 onPress={() => {
-                  void (
-                    qualificationTimer.status === 'paused'
-                      ? resumeQualificationTimer()
-                      : pauseQualificationTimer()
-                  );
+                  void markCurrentParticipantAbsent();
                 }}
-                disabled={
-                  qualificationTimer.status !== 'running' &&
-                  qualificationTimer.status !== 'paused'
-                }
+                disabled={!isQualificationActive}
               >
-                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
+                {getResource('mc_participant_absent')}
               </Button>
             </Box>
             <Box flex={1}>
@@ -124,25 +136,67 @@ export const HostLocalMCView: React.FC = () => {
                 variant="outlined"
                 color="secondary"
                 onPress={() => {
-                  void restartQualificationTimer();
+                  void moveCurrentParticipantToEnd();
                 }}
+                disabled={!canMoveLate}
               >
-                RESTART
+                {getResource('mc_participant_late')}
               </Button>
             </Box>
           </Box>
-          {isManualMode && (
-            <Button
-              variant="outlined"
-              color="secondary"
-              disabled={currentIndex >= participants.length - 1}
+          <Box direction="row" justify="center" align="center" gap={24}>
+            <IconButton
+              variant="contained"
+              style={[styles.smallTransportButton, !canRestart && styles.disabledControl]}
               onPress={() => {
-                void advanceQualificationParticipant();
+                if (canRestart) {
+                  void restartQualificationTimer();
+                }
               }}
             >
-              NEXT PARTICIPANT
-            </Button>
-          )}
+              <Ionicons
+                name="refresh"
+                size={22}
+                color={canRestart ? Colors.text.primary : Colors.text.secondary}
+              />
+            </IconButton>
+            <IconButton
+              variant="contained"
+              style={[styles.primaryTransportButton, !canPauseResume && styles.disabledControl]}
+              onPress={() => {
+                if (canPauseResume) {
+                  void (
+                    isTimerPaused
+                      ? resumeQualificationTimer()
+                      : pauseQualificationTimer()
+                  );
+                }
+              }}
+            >
+              <Ionicons
+                name={isTimerPaused ? 'play' : 'pause'}
+                size={30}
+                color={Colors.dark.background}
+              />
+            </IconButton>
+            {isManualMode && (
+              <IconButton
+                variant="contained"
+                style={[styles.smallTransportButton, !canAdvance && styles.disabledControl]}
+                onPress={() => {
+                  if (canAdvance) {
+                    void advanceQualificationParticipant();
+                  }
+                }}
+              >
+                <Ionicons
+                  name="play-skip-forward"
+                  size={22}
+                  color={canAdvance ? Colors.text.primary : Colors.text.secondary}
+                />
+              </IconButton>
+            )}
+          </Box>
         </Box>
       )}
 
@@ -193,5 +247,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.primary.main,
+  },
+  smallTransportButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderColor: Colors.border.subtle,
+    backgroundColor: Colors.dark.background,
+  },
+  primaryTransportButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderColor: 'transparent',
+    backgroundColor: Colors.primary.main,
+  },
+  disabledControl: {
+    opacity: 0.45,
   },
 });

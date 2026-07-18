@@ -14,17 +14,28 @@ import { JudgeVerdictRow } from './JudgeVerdictRow';
 export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
-  const { state, isHost } = useBattleState();
-  const role = useSessionStore(s => s.role);
+  const {
+    isHost,
+    isReady,
+    battles,
+    judges,
+    participants,
+    votes: allVotes,
+  } = useBattleState();
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
 
-  const battles = state?.battles ?? [];
-  const judges = state?.judges ?? [];
-  const participants = state?.participants ?? [];
-  const allVotes = state?.votes ?? [];
-
   const battle = battles.find(b => b.id === battleId);
+
+  if (!isReady) {
+    return (
+      <Box fullHeight color={Colors.dark.background} align="center" justify="center">
+        <Text variant="body2" color="textSecondary">
+          Waiting for Host result...
+        </Text>
+      </Box>
+    );
+  }
 
   if (battle === undefined || battle.winnerId === undefined) {
     return (
@@ -93,7 +104,7 @@ export const BattleResultScreen: React.FC = () => {
               displayName={getJudgeDisplayName({
                 judgeId: judge.id,
                 judgeName: judge.name,
-                role,
+                isHost,
                 selfJudgeId,
               })}
               vote={vote}

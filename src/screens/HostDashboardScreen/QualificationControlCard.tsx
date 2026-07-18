@@ -7,7 +7,7 @@ import { useSessionStore } from '@stores/session/useSessionStore';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
 
 export const QualificationControlCard: React.FC = () => {
-  const role = useSessionStore(s => s.role);
+  const hasHostRole = useSessionStore(s => s.hasRole('host'));
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const participants = useDemoBattleStore(s => s.participants);
   const judges = useDemoBattleStore(s => s.judges);
@@ -95,7 +95,7 @@ export const QualificationControlCard: React.FC = () => {
                 {getJudgeDisplayName({
                   judgeId: judge.id,
                   judgeName: judge.name,
-                  role,
+                  isHost: hasHostRole,
                   selfJudgeId,
                 })}
               </Text>

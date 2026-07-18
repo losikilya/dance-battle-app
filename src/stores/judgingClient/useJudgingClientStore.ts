@@ -86,6 +86,8 @@ type JudgingClientActions = {
   resumeQualificationTimer: () => void;
   restartQualificationTimer: () => void;
   advanceQualificationParticipant: () => void;
+  markCurrentParticipantAbsent: () => void;
+  moveCurrentParticipantToEnd: () => void;
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
@@ -580,12 +582,18 @@ export const useJudgingClientStore = create<
       reconnectAttempts = 0;
       set({
         status: 'disconnected',
+        host: null,
+        port: null,
+        serverAddress: null,
         assignedJudgeId: null,
         assignedJudgeName: null,
         syncedState: null,
         lastError: null,
         error: null,
         reconnectAttempts: 0,
+        role: null,
+        name: null,
+        requestedJudgeId: null,
       });
     },
 
@@ -668,6 +676,52 @@ export const useJudgingClientStore = create<
       sendCommand(
         createCommand('qualification.advanceParticipant', {
           reason: 'manual',
+        }),
+      );
+    },
+
+    markCurrentParticipantAbsent: (): void => {
+      const syncedState = get().syncedState;
+      const participant = syncedState
+        ? syncedState.participants[
+            syncedState.currentQualificationParticipantIndex
+          ] ?? null
+        : null;
+
+      if (!participant) {
+        set({
+          lastError: 'Current qualification participant was not found',
+          error: 'Current qualification participant was not found',
+        });
+        return;
+      }
+
+      sendCommand(
+        createCommand('qualification.markParticipantAbsent', {
+          participantId: participant.id,
+        }),
+      );
+    },
+
+    moveCurrentParticipantToEnd: (): void => {
+      const syncedState = get().syncedState;
+      const participant = syncedState
+        ? syncedState.participants[
+            syncedState.currentQualificationParticipantIndex
+          ] ?? null
+        : null;
+
+      if (!participant) {
+        set({
+          lastError: 'Current qualification participant was not found',
+          error: 'Current qualification participant was not found',
+        });
+        return;
+      }
+
+      sendCommand(
+        createCommand('qualification.moveParticipantToEnd', {
+          participantId: participant.id,
         }),
       );
     },

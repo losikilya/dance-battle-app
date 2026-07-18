@@ -11,11 +11,16 @@ import { useSessionStore } from '@stores/session/useSessionStore';
 import { parseQrPayload } from '../infrastructure/network/connectionAddress';
 import type { ClientRole } from '@domain/sync/wsProtocol';
 
+function isClientRole(role: unknown): role is ClientRole {
+  return role === 'judge' || role === 'mc' || role === 'spectator';
+}
+
 export default function ScanQrScreen(): React.JSX.Element {
   const router = useRouter();
   const setPendingAddress = useJudgingClientStore(s => s.setPendingAddress);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
-  const sessionRole = useSessionStore(s => s.role);
+  const activeViewRole = useSessionStore(s => s.activeViewRole);
+  const roles = useSessionStore(s => s.roles);
   const judgeName = useSessionStore(s => s.judgeName);
   const requestedJudgeId = useSessionStore(s => s.judgeId);
   const [permission, requestPermission] = useCameraPermissions();
@@ -36,12 +41,10 @@ export default function ScanQrScreen(): React.JSX.Element {
       return;
     }
 
-    const clientRole =
-      sessionRole === 'judge' ||
-      sessionRole === 'mc' ||
-      sessionRole === 'spectator'
-        ? (sessionRole as ClientRole)
-        : null;
+    const fallbackClientRole = roles.find(isClientRole) ?? null;
+    const clientRole = isClientRole(activeViewRole)
+      ? activeViewRole
+      : fallbackClientRole;
 
     if (clientRole) {
       setPendingAddress(null);

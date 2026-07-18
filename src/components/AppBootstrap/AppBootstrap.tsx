@@ -7,24 +7,40 @@ import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
+import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 
 export function AppBootstrap({ children }: { children: React.ReactNode }) {
   const hydrateFromStorage = useDemoBattleStore(s => s.hydrateFromStorage);
   const isHydrated = useDemoBattleStore(s => s.isHydrated);
   const isHydrating = useDemoBattleStore(s => s.isHydrating);
   const storageError = useDemoBattleStore(s => s.storageError);
-  const role = useSessionStore(s => s.role);
+  const roles = useSessionStore(s => s.roles);
+  const hasHostRole = useSessionStore(s => s.hasRole('host'));
   const startServer = useJudgingServerStore(s => s.startServer);
+  const stopServer = useJudgingServerStore(s => s.stopServer);
+  const disconnectClient = useJudgingClientStore(s => s.disconnect);
 
   useEffect(() => {
     void hydrateFromStorage();
   }, [hydrateFromStorage]);
 
   useEffect(() => {
-    if (isHydrated && role === 'host') {
+    if (isHydrated && hasHostRole) {
       void startServer();
     }
-  }, [isHydrated, role, startServer]);
+  }, [hasHostRole, isHydrated, startServer]);
+
+  useEffect(() => {
+    if (!hasHostRole) {
+      stopServer();
+    }
+  }, [hasHostRole, stopServer]);
+
+  useEffect(() => {
+    if (roles.length === 0) {
+      disconnectClient();
+    }
+  }, [disconnectClient, roles.length]);
 
   if (!isHydrated || isHydrating) {
     return (

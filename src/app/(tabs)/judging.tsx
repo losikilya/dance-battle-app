@@ -7,12 +7,13 @@ import { useSessionStore } from '@stores/session/useSessionStore';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 
 export default function JudgingTab(): React.JSX.Element {
-  const role = useSessionStore(s => s.role);
+  const hasJudgeRole = useSessionStore(s => s.hasRole('judge'));
+  const hasHostRole = useSessionStore(s => s.hasRole('host'));
   const status = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const eventStatus = syncedState?.event.status ?? 'draft';
 
-  if (role !== 'judge') {
+  if (!hasJudgeRole || hasHostRole) {
     return (
       <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
         <Text variant="body2" color="textSecondary" centered>

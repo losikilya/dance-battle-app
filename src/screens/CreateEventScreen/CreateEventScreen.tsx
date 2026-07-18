@@ -29,8 +29,8 @@ export function CreateEventScreen() {
   const router = useRouter();
   const createEvent = useDemoBattleStore(s => s.createEvent);
   const sessionRoles = useSessionStore(s => s.roles);
-  const setRole = useSessionStore(s => s.setRole);
   const setRoles = useSessionStore(s => s.setRoles);
+  const setActiveViewRole = useSessionStore(s => s.setActiveViewRole);
   const setSelfJudgeId = useSessionStore(s => s.setSelfJudgeId);
 
   const [title, setTitle] = useState('');
@@ -81,8 +81,8 @@ export function CreateEventScreen() {
       qualificationAdvanceMode,
     });
 
-    setRole('host');
     setRoles(selfRunRoles);
+    setActiveViewRole('host');
     setSelfJudgeId(
       selfRunRoles.includes('judge') ? firstJudgeId : null,
     );
