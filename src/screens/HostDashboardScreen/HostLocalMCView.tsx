@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
 export const HostLocalMCView: React.FC = () => {
@@ -28,6 +29,12 @@ export const HostLocalMCView: React.FC = () => {
   const advanceQualificationParticipant = useDemoBattleStore(
     state => state.advanceQualificationParticipant,
   );
+  const finishQualification = useDemoBattleStore(
+    state => state.finishQualification,
+  );
+  const canFinishQualification = useDemoBattleStore(
+    state => state.canFinishQualification,
+  );
   const getRanking = useDemoBattleStore(state => state.getRanking);
   const getChampionId = useDemoBattleStore(state => state.getChampionId);
 
@@ -38,7 +45,8 @@ export const HostLocalMCView: React.FC = () => {
   const ranking = scores.length > 0 ? getRanking().slice(0, 8) : [];
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
-  const isManualMode = event.qualificationAdvanceMode === 'manual';
+  const isManualMode =
+    event.battleConfiguration?.qualificationAdvanceMode === 'manual';
 
   return (
     <ScrollView
@@ -50,7 +58,7 @@ export const HostLocalMCView: React.FC = () => {
         <Text variant="body2" color="primary">LOCAL MC VIEW</Text>
         <Text variant="h1">{event.title}</Text>
         <Text variant="body2" color="textSecondary">
-          {event.categoryTitle} · {event.status.toUpperCase()}
+          {event.battleConfiguration?.categoryTitle ?? '—'} · {event.status.toUpperCase()}
         </Text>
       </Box>
 
@@ -97,7 +105,7 @@ export const HostLocalMCView: React.FC = () => {
         <Box style={styles.card} p={20} gap={12} mb={20}>
           <QualificationTimerDisplay
             timer={qualificationTimer}
-            durationSeconds={event.qualificationDurationSeconds}
+            durationSeconds={event.battleConfiguration?.qualificationDurationSeconds ?? 60}
           />
           <Box direction="row" gap={8}>
             <Box flex={1}>
@@ -143,6 +151,16 @@ export const HostLocalMCView: React.FC = () => {
               NEXT PARTICIPANT
             </Button>
           )}
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={!canFinishQualification()}
+            onPress={() => {
+              void finishQualification();
+            }}
+          >
+            {getResource('host_qualification_finish')}
+          </Button>
         </Box>
       )}
 

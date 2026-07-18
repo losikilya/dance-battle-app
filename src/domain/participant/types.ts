@@ -8,6 +8,7 @@ export type CheckInStatus = 'present' | 'absent';
 
 export type Participant = {
   id: string;
+  battleConfigurationId?: string;
   number: number;
   name: string;
   crew?: string;

@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 
@@ -7,9 +7,22 @@ type StatCardProps = {
   value: string | number;
   badge?: string;
   badgeColor?: string;
+  onPress?: () => void;
 };
 
-export const StatCard: React.FC<StatCardProps> = ({ label, value, badge, badgeColor }) => (
+export const StatCard: React.FC<StatCardProps> = ({
+  label,
+  value,
+  badge,
+  badgeColor,
+  onPress,
+}) => (
+  <TouchableOpacity
+    style={styles.wrapper}
+    disabled={onPress === undefined}
+    accessibilityRole={onPress === undefined ? undefined : 'button'}
+    onPress={onPress}
+  >
   <Box style={styles.card} p={16} gap={8} flex={1}>
     <Text variant="body2" color="textSecondary">{label}</Text>
     <Text variant="h2">{String(value)}</Text>
@@ -19,10 +32,15 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, badge, badgeCo
       </Box>
     )}
   </Box>
+  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   card: {
+    flex: 1,
     backgroundColor: Colors.dark.backgroundLight,
     borderRadius: 12,
     borderWidth: 1,

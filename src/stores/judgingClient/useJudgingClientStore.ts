@@ -86,6 +86,8 @@ type JudgingClientActions = {
   resumeQualificationTimer: () => void;
   restartQualificationTimer: () => void;
   advanceQualificationParticipant: () => void;
+  finishQualification: () => void;
+  generateBracket: (participantIds: string[]) => void;
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
@@ -670,6 +672,14 @@ export const useJudgingClientStore = create<
           reason: 'manual',
         }),
       );
+    },
+
+    finishQualification: (): void => {
+      sendCommand(createCommand('qualification.finish', {}));
+    },
+
+    generateBracket: (participantIds): void => {
+      sendCommand(createCommand('bracket.generate', { participantIds }));
     },
 
     requestSnapshot: (): void => {

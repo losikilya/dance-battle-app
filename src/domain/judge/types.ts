@@ -4,4 +4,6 @@ export type Judge = {
   id: string;
   name: string;
   role: JudgeRole;
+  deviceId?: string;
+  battleConfigurationId?: string;
 };

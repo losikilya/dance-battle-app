@@ -1,12 +1,15 @@
 import { StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
+import { getActiveBattleConfigurationId, isInBattleConfiguration } from '@domain/sync/stateSelectors';
 
 export const QualificationControlCard: React.FC = () => {
+  const router = useRouter();
   const role = useSessionStore(s => s.role);
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const participants = useDemoBattleStore(s => s.participants);
@@ -39,6 +42,14 @@ export const QualificationControlCard: React.FC = () => {
   const currentParticipant = getCurrentQualificationParticipant();
   const currentParticipantScores =
     scores.length === 0 ? [] : getScoresForCurrentParticipant();
+  const activeBattleConfigurationId = getActiveBattleConfigurationId(event);
+  const activeParticipants = participants.filter(
+    (p) => isInBattleConfiguration(activeBattleConfigurationId, p),
+  );
+  const assignedJudgeIds = event.battleConfiguration?.assignedJudgeIds ?? [];
+  const assignedJudges = judges.filter((judge) =>
+    assignedJudgeIds.includes(judge.id),
+  );
 
   if (!currentParticipant) {
     return null;
@@ -52,7 +63,7 @@ export const QualificationControlCard: React.FC = () => {
         </Text>
         <Text variant="body2" color="textSecondary">
           {getResource('host_qualification_progress')}{' '}
-          {currentQualificationParticipantIndex + 1} / {participants.length}
+          {currentQualificationParticipantIndex + 1} / {activeParticipants.length}
         </Text>
       </Box>
 
@@ -70,14 +81,14 @@ export const QualificationControlCard: React.FC = () => {
 
       <QualificationTimerDisplay
         timer={qualificationTimer}
-        durationSeconds={event.qualificationDurationSeconds}
+        durationSeconds={event.battleConfiguration?.qualificationDurationSeconds ?? 60}
       />
 
       <Box gap={8}>
         <Text variant="body2" color="textSecondary">
           {getResource('host_qualification_judge_scores')}
         </Text>
-        {judges.map(judge => {
+        {assignedJudges.map(judge => {
           const score = currentParticipantScores.find(
             item => item.judgeId === judge.id,
           )?.score;
@@ -126,7 +137,9 @@ export const QualificationControlCard: React.FC = () => {
           color="secondary"
           disabled={!canFinishQualification()}
           onPress={() => {
-            void finishQualification();
+            void finishQualification().then(() => {
+              router.push('/(tabs)/brackets');
+            });
           }}
         >
           {getResource('host_qualification_finish')}

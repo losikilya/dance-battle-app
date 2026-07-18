@@ -10,9 +10,19 @@ import { BattleCard } from './BattleCard';
 import { PowerRankingsWidget } from './PowerRankingsWidget';
 import { BattleFeedWidget } from './BattleFeedWidget';
 
-const ROUND_ORDER: BattleRound[] = ['top8', 'semifinal', 'final'];
+const ROUND_ORDER: BattleRound[] = [
+  'final',
+  'semifinal',
+  'top8',
+  'top16',
+  'top32',
+  'custom',
+];
 
 const ROUND_LABELS: Record<BattleRound, string> = {
+  custom: getResource('bracket_round_custom'),
+  top32: getResource('bracket_round_top32'),
+  top16: getResource('bracket_round_top16'),
   top8: getResource('bracket_round_top8'),
   semifinal: getResource('bracket_round_semifinal'),
   final: getResource('bracket_round_final'),
@@ -30,11 +40,10 @@ export const BracketScreen: React.FC = () => {
     b => b.status === 'active' || b.status === 'voting'
   ).length * 2;
 
-  const activeRound = battles.find(b => b.round === 'final' && b.status === 'active')
-    ? ROUND_LABELS.final
-    : battles.find(b => b.round === 'semifinal' && b.status === 'active')
-      ? ROUND_LABELS.semifinal
-      : ROUND_LABELS.top8;
+  const activeBattle = battles.find(
+    b => b.status === 'active' || b.status === 'voting',
+  );
+  const activeRound = ROUND_LABELS[activeBattle?.round ?? battles[0]?.round ?? 'top8'];
 
   return (
     <ScrollView
@@ -83,7 +92,7 @@ export const BracketScreen: React.FC = () => {
       )}
 
       <Box gap={16} mt={8}>
-        <PowerRankingsWidget />
+        {!isHost && <PowerRankingsWidget />}
         <BattleFeedWidget />
       </Box>
     </ScrollView>

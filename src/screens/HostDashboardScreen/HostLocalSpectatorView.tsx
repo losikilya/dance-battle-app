@@ -2,9 +2,51 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { BattleDuelCard } from '@screens/SpectatorLiveScreen/BattleDuelCard';
 import { LiveScoreBar } from '@screens/SpectatorLiveScreen/LiveScoreBar';
+import type { Battle, BattleRound } from '@domain/battle/types';
+
+const ROUND_LABELS: Record<BattleRound, string> = {
+  custom: getResource('bracket_round_custom'),
+  top32: getResource('bracket_round_top32'),
+  top16: getResource('bracket_round_top16'),
+  top8: getResource('bracket_round_top8'),
+  semifinal: getResource('bracket_round_semifinal'),
+  final: getResource('bracket_round_final'),
+};
+
+const ROUND_DISPLAY_ORDER: BattleRound[] = [
+  'final',
+  'semifinal',
+  'top8',
+  'top16',
+  'top32',
+  'custom',
+];
+
+function sortBattlesForDisplay(battles: Battle[]): Battle[] {
+  return [...battles].sort((a, b) => {
+    const roundDiff =
+      ROUND_DISPLAY_ORDER.indexOf(a.round) -
+      ROUND_DISPLAY_ORDER.indexOf(b.round);
+
+    if (roundDiff !== 0) {
+      return roundDiff;
+    }
+
+    return a.slot - b.slot;
+  });
+}
+
+const getLatestFinishedBattle = (battles: Battle[]): Battle | null => {
+  const finishedBattles = battles.filter(
+    battle => battle.status === 'finished' && battle.winnerId !== undefined,
+  );
+
+  return finishedBattles[finishedBattles.length - 1] ?? null;
+};
 
 export const HostLocalSpectatorView: React.FC = () => {
   const event = useDemoBattleStore(state => state.event);
@@ -16,22 +58,35 @@ export const HostLocalSpectatorView: React.FC = () => {
 
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
+  const latestFinishedBattle = getLatestFinishedBattle(battles);
+  const displayBattle = activeBattle ?? latestFinishedBattle;
+  const displayBattleId = displayBattle?.id ?? null;
+  const isLiveBattle = activeBattle !== null;
   const participantA = participants.find(
-    item => item.id === activeBattle?.participantAId,
+    item => item.id === displayBattle?.participantAId,
   );
   const participantB = participants.find(
-    item => item.id === activeBattle?.participantBId,
+    item => item.id === displayBattle?.participantBId,
   );
-  const battleVotes = votes.filter(vote => vote.battleId === activeBattleId);
+  const battleVotes = votes.filter(vote => vote.battleId === displayBattleId);
   const votesA = battleVotes.filter(
-    vote => vote.winnerId === activeBattle?.participantAId,
+    vote => vote.winnerId === displayBattle?.participantAId,
   ).length;
   const votesB = battleVotes.filter(
-    vote => vote.winnerId === activeBattle?.participantBId,
+    vote => vote.winnerId === displayBattle?.participantBId,
   ).length;
   const maxVotes = Math.max(votesA, votesB, 1);
+  const winner = participants.find(item => item.id === displayBattle?.winnerId);
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
+  const finalBattleFinished = battles.some(
+    battle => battle.round === 'final' && battle.status === 'finished' && battle.winnerId !== undefined,
+  );
+  const finishedBattles = battles.filter(
+    battle => battle.status === 'finished' && battle.winnerId !== undefined,
+  );
+  const sortedBattles = sortBattlesForDisplay(battles);
+  const sortedFinishedBattles = sortBattlesForDisplay(finishedBattles);
 
   return (
     <ScrollView
@@ -43,28 +98,40 @@ export const HostLocalSpectatorView: React.FC = () => {
         <Text variant="body2" color="primary">LOCAL SPECTATOR VIEW</Text>
         <Text variant="h1">{event.title}</Text>
         <Text variant="body2" color="textSecondary">
-          {event.categoryTitle}
+          {event.battleConfiguration?.categoryTitle ?? '—'}
         </Text>
       </Box>
 
       {champion && (
         <Box style={styles.championCard} p={24} gap={4} mb={20}>
-          <Text variant="body2" color="textSecondary">CHAMPION</Text>
+          <Text variant="body2" color="textSecondary">
+            {getResource('spectator_final_results')}
+          </Text>
           <Text variant="h1">{champion.name}</Text>
         </Box>
       )}
 
-      {activeBattle ? (
+      {displayBattle ? (
         <>
           <Box mb={16}>
             <BattleDuelCard
               participantA={participantA}
               participantB={participantB}
-              round={activeBattle.round}
+              round={displayBattle.round}
+              broadcastLabel={
+                isLiveBattle
+                  ? getResource('spectator_live_broadcast')
+                  : getResource('spectator_last_battle_result')
+              }
+              isLive={isLiveBattle}
             />
           </Box>
           <Box style={styles.card} p={20} gap={12} mb={20}>
-            <Text variant="bodyBold">LIVE JUDGING SCORE</Text>
+            <Text variant="bodyBold">
+              {isLiveBattle
+                ? getResource('spectator_live_score')
+                : getResource('spectator_result_score')}
+            </Text>
             <LiveScoreBar
               label={participantA?.name ?? 'A'}
               score={votesA}
@@ -77,24 +144,32 @@ export const HostLocalSpectatorView: React.FC = () => {
               fill={votesB / maxVotes}
               color={Colors.secondary.main}
             />
+            {!isLiveBattle && winner !== undefined && (
+              <Box style={styles.winnerChip} p={12} gap={2}>
+                <Text variant="body2" color="textSecondary">
+                  {getResource('spectator_winner_label')}
+                </Text>
+                <Text variant="bodyBold">{winner.name}</Text>
+              </Box>
+            )}
           </Box>
         </>
       ) : (
         <Box style={styles.card} p={24} mb={20}>
           <Text variant="body2" color="textSecondary" centered>
-            No active battle — stand by.
+            {getResource('spectator_no_battle')}
           </Text>
         </Box>
       )}
 
       <Box style={styles.card} p={20} gap={10}>
-        <Text variant="bodyBold">TOURNAMENT BRACKET</Text>
+        <Text variant="bodyBold">{getResource('spectator_bracket_title')}</Text>
         {battles.length === 0 ? (
           <Text variant="body2" color="textSecondary">
-            Bracket will appear after qualification.
+            {getResource('bracket_placeholder')}
           </Text>
         ) : (
-          battles.map(battle => (
+          sortedBattles.map(battle => (
             <Box key={battle.id} gap={2}>
               <Text variant="body">
                 {participants.find(p => p.id === battle.participantAId)?.name ??
@@ -106,10 +181,32 @@ export const HostLocalSpectatorView: React.FC = () => {
               <Text variant="body2" color="textSecondary">
                 {battle.round.toUpperCase()} · {battle.status.toUpperCase()}
               </Text>
+              {battle.winnerId !== undefined && (
+                <Text variant="body2" color="textSecondary">
+                  {getResource('spectator_winner_prefix')}{' '}
+                  {participants.find(p => p.id === battle.winnerId)?.name ?? '—'}
+                </Text>
+              )}
             </Box>
           ))
         )}
       </Box>
+
+      {finalBattleFinished && finishedBattles.length > 0 && (
+        <Box style={styles.card} p={20} gap={10} mt={20}>
+          <Text variant="bodyBold">{getResource('spectator_results_title')}</Text>
+          {sortedFinishedBattles.map(battle => (
+            <Box key={battle.id} direction="row" justify="space-between" align="center" gap={12}>
+              <Text variant="body2" color="textSecondary">
+                {ROUND_LABELS[battle.round]} #{battle.slot}
+              </Text>
+              <Text variant="bodyBold" numberOfLines={1} style={styles.resultWinner}>
+                {participants.find(p => p.id === battle.winnerId)?.name ?? '—'}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
     </ScrollView>
   );
 };
@@ -134,5 +231,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.primary.main,
+  },
+  winnerChip: {
+    backgroundColor: Colors.primary.subtle,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+  },
+  resultWinner: {
+    flexShrink: 1,
+    textAlign: 'right',
   },
 });

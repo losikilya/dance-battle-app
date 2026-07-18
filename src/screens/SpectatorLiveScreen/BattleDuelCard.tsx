@@ -6,21 +6,28 @@ import type { Participant } from '@domain/participant/types';
 import type { BattleRound } from '@domain/battle/types';
 
 const ROUND_LABELS: Record<BattleRound, string> = {
-  top8: 'ROUND 1/3',
-  semifinal: 'ROUND 2/3',
-  final: 'ROUND 3/3',
+  custom: getResource('bracket_round_custom'),
+  top32: getResource('bracket_round_top32'),
+  top16: getResource('bracket_round_top16'),
+  top8: getResource('bracket_round_top8'),
+  semifinal: getResource('bracket_round_semifinal'),
+  final: getResource('bracket_round_final'),
 };
 
 type BattleDuelCardProps = {
   participantA: Participant | undefined;
   participantB: Participant | undefined;
   round: BattleRound;
+  broadcastLabel?: string;
+  isLive?: boolean;
 };
 
 export const BattleDuelCard: React.FC<BattleDuelCardProps> = ({
   participantA,
   participantB,
   round,
+  broadcastLabel = getResource('spectator_live_broadcast'),
+  isLive = true,
 }) => (
   <Box style={styles.card} p={16} gap={16}>
     <Box align="center" gap={8}>
@@ -55,10 +62,10 @@ export const BattleDuelCard: React.FC<BattleDuelCardProps> = ({
     </Box>
 
     <Box direction="row" align="center" gap={8} mt={4}>
-      <Box style={styles.liveDot} />
-      <Text variant="body2" color="primary">{getResource('spectator_live_broadcast')}</Text>
+      <Box style={isLive ? styles.liveDot : styles.resultDot} />
+      <Text variant="body2" color={isLive ? 'primary' : 'textSecondary'}>{broadcastLabel}</Text>
       <Box style={styles.broadcastBar} flex={1}>
-        <Box style={styles.broadcastFill} />
+        <Box style={isLive ? styles.broadcastFill : styles.resultFill} />
       </Box>
     </Box>
   </Box>
@@ -99,6 +106,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.primary.main,
   },
+  resultDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.text.secondary,
+  },
   broadcastBar: {
     height: 4,
     backgroundColor: Colors.dark.background,
@@ -109,6 +122,12 @@ const styles = StyleSheet.create({
     width: '60%',
     height: 4,
     backgroundColor: Colors.primary.main,
+    borderRadius: 2,
+  },
+  resultFill: {
+    width: '100%',
+    height: 4,
+    backgroundColor: Colors.text.secondary,
     borderRadius: 2,
   },
 });

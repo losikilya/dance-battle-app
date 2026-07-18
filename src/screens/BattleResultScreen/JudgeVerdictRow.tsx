@@ -9,14 +9,14 @@ type JudgeVerdictRowProps = {
   judge: Judge;
   displayName?: string;
   vote: BattleVote | null;
-  participantAId: string;
+  participantIds: string[];
 };
 
 export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({
   judge,
   displayName = judge.name,
   vote,
-  participantAId,
+  participantIds,
 }) => {
   const initials = displayName
     .split(' ')
@@ -24,7 +24,9 @@ export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({
     .map(w => w.charAt(0).toUpperCase())
     .join('');
 
-  const votedForA = vote?.winnerId === participantAId;
+  const votedParticipantIndex = vote
+    ? participantIds.indexOf(vote.winnerId)
+    : -1;
   const hasVote = vote !== null;
 
   return (
@@ -40,11 +42,16 @@ export const JudgeVerdictRow: React.FC<JudgeVerdictRowProps> = ({
       </Box>
       {hasVote && (
         <Box
-          style={votedForA ? { ...styles.voteBadge, ...styles.voteA } : { ...styles.voteBadge, ...styles.voteB }}
+          style={StyleSheet.flatten([
+            styles.voteBadge,
+            votedParticipantIndex === 0 ? styles.voteA : styles.voteB,
+          ])}
           px={12}
           py={6}
         >
-          <Text variant="bodyBold" color="dark">{votedForA ? 'A' : 'B'}</Text>
+          <Text variant="bodyBold" color="dark">
+            {votedParticipantIndex >= 0 ? votedParticipantIndex + 1 : '—'}
+          </Text>
         </Box>
       )}
     </Box>

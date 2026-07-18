@@ -28,15 +28,19 @@ export const JudgeBattleVotingScreen: React.FC = () => {
   const activeBattle = battles.find(b => b.id === activeBattleId) ?? null;
 
   const participants = syncedState?.participants ?? [];
-  const participantA = activeBattle ? participants.find(p => p.id === activeBattle.participantAId) ?? null : null;
-  const participantB = activeBattle ? participants.find(p => p.id === activeBattle.participantBId) ?? null : null;
+  const battleParticipantIds = activeBattle?.participantIds ??
+    (activeBattle ? [activeBattle.participantAId, activeBattle.participantBId] : []);
+  const battleParticipants = battleParticipantIds
+    .map((participantId) => participants.find(p => p.id === participantId) ?? null)
+    .filter((participant): participant is NonNullable<typeof participant> => participant !== null);
 
   const existingVote = syncedState?.votes.find(
     v => v.battleId === activeBattleId && v.judgeId === judgeId,
   ) ?? null;
 
   const isVotingOpen = activeBattle?.status === 'voting';
-  const categoryTitle = syncedState?.event.categoryTitle ?? '—';
+  const categoryTitle =
+    syncedState?.event.battleConfiguration?.categoryTitle ?? '—';
   const round = activeBattle?.round;
   const slot = activeBattle?.slot;
 
@@ -74,62 +78,43 @@ export const JudgeBattleVotingScreen: React.FC = () => {
         </Box>
       )}
 
-      {activeBattle !== null && participantA !== null && participantB !== null ? (
+      {activeBattle !== null && battleParticipants.length >= 2 ? (
         <>
-          <Box mb={12}>
-            <DancerVoteCard
-              participant={participantA}
-              label={getResource('judge_dancer_a')}
-              accentColor={Colors.primary.main}
-              isSelected={pendingVote === participantA.id}
-              onPress={() => setPendingVote(participantA.id)}
-              disabled={!isVotingOpen || existingVote !== null}
-              categoryTitle={categoryTitle}
-            />
-          </Box>
-
-          <Box mb={24}>
-            <DancerVoteCard
-              participant={participantB}
-              label={getResource('judge_dancer_b')}
-              accentColor={Colors.secondary.dark}
-              isSelected={pendingVote === participantB.id}
-              onPress={() => setPendingVote(participantB.id)}
-              disabled={!isVotingOpen || existingVote !== null}
-              categoryTitle={categoryTitle}
-            />
-          </Box>
+          {battleParticipants.map((participant, index) => (
+            <Box key={participant.id} mb={index === battleParticipants.length - 1 ? 24 : 12}>
+              <DancerVoteCard
+                participant={participant}
+                label={`${getResource('judge_dancer_label')} ${index + 1}`}
+                accentColor={index % 2 === 0 ? Colors.primary.main : Colors.secondary.dark}
+                isSelected={pendingVote === participant.id}
+                onPress={() => setPendingVote(participant.id)}
+                disabled={!isVotingOpen || existingVote !== null}
+                categoryTitle={categoryTitle}
+              />
+            </Box>
+          ))}
 
           {existingVote !== null ? (
             <Box style={styles.submittedCard} p={16} align="center" gap={4}>
               <Text variant="bodyBold" color="primary">{getResource('judge_vote_submitted')}</Text>
               <Text variant="body2" color="textSecondary">
-                {getResource('judge_voted_for_prefix')} {existingVote.winnerId === participantA.id ? participantA.name : participantB.name}
+                {getResource('judge_voted_for_prefix')} {battleParticipants.find((participant) => participant.id === existingVote.winnerId)?.name ?? '—'}
               </Text>
             </Box>
           ) : (
             <>
-              <Box direction="row" gap={12} mb={12}>
-                <Box flex={1}>
+              <Box gap={12} mb={12}>
+                {battleParticipants.map((participant, index) => (
                   <Button
-                    variant={pendingVote === participantA.id ? 'contained' : 'outlined'}
-                    color={pendingVote === participantA.id ? 'primary' : 'secondary'}
-                    onPress={() => setPendingVote(participantA.id)}
+                    key={participant.id}
+                    variant={pendingVote === participant.id ? 'contained' : 'outlined'}
+                    color={pendingVote === participant.id ? 'primary' : 'secondary'}
+                    onPress={() => setPendingVote(participant.id)}
                     disabled={!isVotingOpen}
                   >
-                    {getResource('judge_vote_a')}
+                    {getResource('judge_vote_prefix')} {index + 1}
                   </Button>
-                </Box>
-                <Box flex={1}>
-                  <Button
-                    variant={pendingVote === participantB.id ? 'contained' : 'outlined'}
-                    color={pendingVote === participantB.id ? 'primary' : 'secondary'}
-                    onPress={() => setPendingVote(participantB.id)}
-                    disabled={!isVotingOpen}
-                  >
-                    {getResource('judge_vote_b')}
-                  </Button>
-                </Box>
+                ))}
               </Box>
 
               {pendingVote !== null && (

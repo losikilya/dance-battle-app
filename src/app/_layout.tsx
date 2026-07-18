@@ -28,7 +28,9 @@ const RootWithQuery: React.FC = () => {
           <Stack.Screen name="(auth)/discovery" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/role-selection" options={{ headerShown: false }} />
           <Stack.Screen name="participants" options={{ headerShown: false }} />
+          <Stack.Screen name="battle-dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="create-event" options={{ headerShown: false }} />
+          <Stack.Screen name="configure-battle" options={{ headerShown: false }} />
           <Stack.Screen name="scan-qr" options={{ headerShown: false }} />
         </Stack>
       </GestureHandlerRootView>

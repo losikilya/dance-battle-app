@@ -4,6 +4,8 @@ import { AppRole } from '@domain/role/types';
 type SessionState = {
   role: AppRole | null;
   roles: AppRole[];
+  lastHostRoles: AppRole[];
+  lastHostSelfJudgeId: string | null;
   activeViewRole: AppRole | null;
   selfJudgeId: string | null;
   judgeId: string | null;
@@ -44,6 +46,8 @@ export const useSessionStore = create<SessionState & SessionActions>(
   (set, get) => ({
     role: null,
     roles: [],
+    lastHostRoles: [],
+    lastHostSelfJudgeId: null,
     activeViewRole: null,
     selfJudgeId: null,
     judgeId: null,
@@ -52,9 +56,19 @@ export const useSessionStore = create<SessionState & SessionActions>(
     setRole: role =>
       set(state => {
         if (role === null) {
+          const lastHostRoles =
+            state.role === 'host' && state.roles.includes('host')
+              ? state.roles
+              : state.lastHostRoles;
+
           return {
             role: null,
             roles: [],
+            lastHostRoles,
+            lastHostSelfJudgeId:
+              state.role === 'host'
+                ? state.selfJudgeId
+                : state.lastHostSelfJudgeId,
             activeViewRole: null,
             selfJudgeId: null,
           };
@@ -68,6 +82,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
         return {
           role,
           roles,
+          lastHostRoles: role === 'host' ? roles : state.lastHostRoles,
           activeViewRole: role,
           selfJudgeId: role === 'host' ? state.selfJudgeId : null,
         };
@@ -79,6 +94,8 @@ export const useSessionStore = create<SessionState & SessionActions>(
 
         return {
           roles: normalizedRoles,
+          lastHostRoles:
+            state.role === 'host' ? normalizedRoles : state.lastHostRoles,
           selfJudgeId: normalizedRoles.includes('judge')
             ? state.selfJudgeId
             : null,
@@ -109,7 +126,12 @@ export const useSessionStore = create<SessionState & SessionActions>(
     hasRole: role => get().roles.includes(role),
 
     setActiveViewRole: activeViewRole => set({ activeViewRole }),
-    setSelfJudgeId: selfJudgeId => set({ selfJudgeId }),
+    setSelfJudgeId: selfJudgeId =>
+      set(state => ({
+        selfJudgeId,
+        lastHostSelfJudgeId:
+          state.role === 'host' ? selfJudgeId : state.lastHostSelfJudgeId,
+      })),
     setJudgeId: judgeId => set({ judgeId }),
     setJudgeName: judgeName => set({ judgeName }),
   }),

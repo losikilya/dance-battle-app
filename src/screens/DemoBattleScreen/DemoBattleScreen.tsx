@@ -43,7 +43,7 @@ export function DemoBattleScreen() {
   const canFinishQualification = useDemoBattleStore(
     (state) => state.canFinishQualification,
   );
-  const canGenerateTop8 = useDemoBattleStore((state) => state.canGenerateTop8);
+  const canGenerateBracket = useDemoBattleStore((state) => state.canGenerateBracket);
   const canGenerateNextRound = useDemoBattleStore(
     (state) => state.canGenerateNextRound,
   );
@@ -64,7 +64,7 @@ export function DemoBattleScreen() {
   const fillRandomQualificationScores = useDemoBattleStore(
     (state) => state.fillRandomQualificationScores,
   );
-  const generateTop8 = useDemoBattleStore((state) => state.generateTop8);
+  const generateBracket = useDemoBattleStore((state) => state.generateBracket);
   //   const submitRandomVotesForBattle = useDemoBattleStore(
   //     (state) => state.submitRandomVotesForBattle,
   //   );
@@ -82,7 +82,7 @@ export function DemoBattleScreen() {
   const isStartQualificationAvailable = canStartQualification();
   const isNextParticipantAvailable = canGoToNextQualificationParticipant();
   const isFinishQualificationAvailable = canFinishQualification();
-  const isTop8GenerationAvailable = canGenerateTop8();
+  const isBracketGenerationAvailable = canGenerateBracket();
   const isNextRoundGenerationAvailable = canGenerateNextRound();
 
   const getVotesForBattle = useDemoBattleStore(
@@ -124,7 +124,7 @@ export function DemoBattleScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>{event.title}</Text>
-          <Text style={styles.subtitle}>{event.categoryTitle}</Text>
+          <Text style={styles.subtitle}>{event.battleConfiguration?.categoryTitle ?? '—'}</Text>
           <Text style={styles.status}>Status: {event.status}</Text>
         </View>
 
@@ -153,7 +153,9 @@ export function DemoBattleScreen() {
 
         <Button
           title="Start qualification"
-          onPress={startQualification}
+          onPress={() => {
+            void startQualification();
+          }}
           disabled={!isStartQualificationAvailable}
         />
 
@@ -267,8 +269,10 @@ export function DemoBattleScreen() {
 
         <Button
           title="Generate Top 8"
-          onPress={generateTop8}
-          disabled={!isTop8GenerationAvailable}
+          onPress={() =>
+            generateBracket(ranking.slice(0, 8).map((item) => item.participantId))
+          }
+          disabled={!isBracketGenerationAvailable}
         />
 
         {battles.map((battle) => {
@@ -404,7 +408,7 @@ export function DemoBattleScreen() {
 
         {battles.length > 0 && (
           <Button
-            title="Generate next round"
+            title="Next round"
             onPress={generateNextRound}
             disabled={!isNextRoundGenerationAvailable}
           />

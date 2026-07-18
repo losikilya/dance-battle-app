@@ -43,10 +43,10 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
   const submitRandomVotesForBattle = useDemoBattleStore(s => s.submitRandomVotesForBattle);
 
   const votes = getVotesForBattle(battle.id);
-  const votesA = votes.filter(v => v.winnerId === battle.participantAId).length;
-  const votesB = votes.filter(v => v.winnerId === battle.participantBId).length;
-  const nameA = getParticipantName(battle.participantAId);
-  const nameB = getParticipantName(battle.participantBId);
+  const participantIds = battle.participantIds ?? [
+    battle.participantAId,
+    battle.participantBId,
+  ];
 
   const isFinished = battle.status === 'finished';
   const isHost = role === 'host';
@@ -83,16 +83,14 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
             <Text variant="body2" style={{ color: statusColor }}>{statusLabel}</Text>
           </Box>
         </Box>
-        <ParticipantVoteRow
-          name={nameA}
-          votes={votesA}
-          isWinner={battle.winnerId === battle.participantAId}
-        />
-        <ParticipantVoteRow
-          name={nameB}
-          votes={votesB}
-          isWinner={battle.winnerId === battle.participantBId}
-        />
+        {participantIds.map((participantId) => (
+          <ParticipantVoteRow
+            key={participantId}
+            name={getParticipantName(participantId)}
+            votes={votes.filter(v => v.winnerId === participantId).length}
+            isWinner={battle.winnerId === participantId}
+          />
+        ))}
         {isHost && battle.status === 'pending' && (
           <Button
             disabled={!canStartBattle(battle.id)}

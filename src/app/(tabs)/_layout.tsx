@@ -1,8 +1,10 @@
-import { Platform, Dimensions, View } from "react-native";
-import { Tabs, Redirect } from "expo-router";
-import Colors from "@constants/Colors";
-import { Icon, TabBar } from "@components";
+import { Dimensions, Platform, View } from "react-native";
+import { Redirect, Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+
+import { AppTopMenu, Icon, TabBar } from "@components";
+import Colors from "@constants/Colors";
+import { getResource } from "@resources";
 import { useSessionStore } from "@stores/session/useSessionStore";
 
 const windowHeight = Dimensions.get("window").height;
@@ -10,19 +12,22 @@ const IOS = "ios";
 
 export default function TabLayout(): React.JSX.Element {
   const role = useSessionStore((s) => s.role);
+  const isHost = role === "host";
 
   if (!role) {
     return <Redirect href="/(auth)/discovery" />;
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: Colors.dark.background }}>
       <Tabs
         screenOptions={({ navigation }) => {
           const state = navigation.getState();
           const hasNestedNavigation =
-            Number(state.routes[state.index].state?.index ?? 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
+            Number(state.routes[state.index].state?.index ?? 0) > 0;
 
           return {
+            headerShown: false,
             headerStyle: { backgroundColor: Colors.dark.background, height: 0 },
             tabBarStyle: {
               ...(Platform.OS === IOS
@@ -31,9 +36,9 @@ export default function TabLayout(): React.JSX.Element {
                     borderTopColor: "transparent",
                   }
                 : {
-                  backgroundColor: Colors.dark.background,
-                  borderTopColor: Colors.secondary.dark,
-                }),
+                    backgroundColor: Colors.dark.background,
+                    borderTopColor: Colors.secondary.dark,
+                  }),
               height: windowHeight * 0.1,
               paddingTop: 12,
               display: hasNestedNavigation ? "none" : undefined,
@@ -44,7 +49,7 @@ export default function TabLayout(): React.JSX.Element {
         tabBar={(props) => {
           const state = props.navigation.getState();
           const hasNestedNavigation =
-            (state.routes[state.index].state?.index || 0) > 0; //  if the current state's route has a state, and its not the index of that route, then we've detected nested navigation
+            Number(state.routes[state.index].state?.index ?? 0) > 0;
 
           return hasNestedNavigation ? <View /> : <TabBar {...props} />;
         }}
@@ -52,7 +57,7 @@ export default function TabLayout(): React.JSX.Element {
         <Tabs.Screen
           name="index"
           options={{
-            title: "",
+            title: isHost ? getResource("host_tabs_dashboard") : "",
             tabBarIcon: ({ color }) => (
               <Icon>
                 <Ionicons name="grid-outline" size={24} style={{ color }} />
@@ -61,8 +66,21 @@ export default function TabLayout(): React.JSX.Element {
           }}
         />
         <Tabs.Screen
+          name="host-battles"
+          options={{
+            href: isHost ? undefined : null,
+            title: isHost ? getResource("host_tabs_battles") : "",
+            tabBarIcon: ({ color }) => (
+              <Icon>
+                <Ionicons name="flash-outline" size={24} style={{ color }} />
+              </Icon>
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="brackets"
           options={{
+            href: isHost ? null : undefined,
             title: "",
             tabBarIcon: ({ color }) => (
               <Icon>
@@ -74,10 +92,15 @@ export default function TabLayout(): React.JSX.Element {
         <Tabs.Screen
           name="judging"
           options={{
+            href: isHost ? null : undefined,
             title: "",
             tabBarIcon: ({ color }) => (
               <Icon>
-                <Ionicons name="shield-checkmark-outline" size={24} style={{ color }} />
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={24}
+                  style={{ color }}
+                />
               </Icon>
             ),
           }}
@@ -85,6 +108,7 @@ export default function TabLayout(): React.JSX.Element {
         <Tabs.Screen
           name="live"
           options={{
+            href: isHost ? null : undefined,
             title: "",
             tabBarIcon: ({ color }) => (
               <Icon>
@@ -93,21 +117,10 @@ export default function TabLayout(): React.JSX.Element {
             ),
           }}
         />
-        <Tabs.Screen
-          name="design"
-          options={{
-            title: "",
-            tabBarIcon: ({ color }) => (
-              <Icon>
-                <Ionicons name="color-palette-outline" size={24} style={{ color }} />
-              </Icon>
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{ href: null }}
-        />
+        <Tabs.Screen name="profile" options={{ href: null }} />
+        <Tabs.Screen name="design" options={{ href: null }} />
       </Tabs>
+      <AppTopMenu />
+    </View>
   );
 }

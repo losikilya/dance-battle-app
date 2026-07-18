@@ -32,6 +32,9 @@ export const MCDashboardScreen: React.FC = () => {
   const advanceQualificationParticipant = useJudgingClientStore(
     s => s.advanceQualificationParticipant,
   );
+  const finishQualification = useJudgingClientStore(
+    s => s.finishQualification,
+  );
 
   const participants = syncedState?.participants ?? [];
   const scores = syncedState?.scores ?? [];
@@ -49,7 +52,17 @@ export const MCDashboardScreen: React.FC = () => {
   const qualificationTimer = syncedState?.qualificationTimer ?? null;
   const event = syncedState?.event ?? null;
   const top8 = ranking.slice(0, 8);
-  const isManualMode = event?.qualificationAdvanceMode === 'manual';
+  const isManualMode =
+    event?.battleConfiguration?.qualificationAdvanceMode === 'manual';
+  const canFinishQualification =
+    eventStatus === 'qualification' &&
+    participants.length > 0 &&
+    (syncedState?.judges.length ?? 0) > 0 &&
+    judgesHaveSubmittedAllScores({
+      judgesCount: syncedState?.judges.length ?? 0,
+      participantsCount: participants.length,
+      scoresCount: scores.length,
+    });
 
   return (
     <ScrollView
@@ -92,7 +105,7 @@ export const MCDashboardScreen: React.FC = () => {
               #{String(currentParticipant.number).padStart(2, '0')} {currentParticipant.name}
             </Text>
             <Text variant="body2" color="primary">
-              {syncedState?.event.categoryTitle ?? '—'} / {currentParticipant.city}
+              {syncedState?.event.battleConfiguration?.categoryTitle ?? '—'} / {currentParticipant.city}
             </Text>
 
             <Box direction="row" gap={1} mt={8}>
@@ -121,7 +134,7 @@ export const MCDashboardScreen: React.FC = () => {
         <Box style={styles.timerCard} p={16} gap={12} mb={24}>
           <QualificationTimerDisplay
             timer={qualificationTimer}
-            durationSeconds={event.qualificationDurationSeconds}
+            durationSeconds={event.battleConfiguration?.qualificationDurationSeconds ?? 60}
           />
           <Box direction="row" gap={8}>
             <Box flex={1}>
@@ -161,6 +174,14 @@ export const MCDashboardScreen: React.FC = () => {
               NEXT PARTICIPANT
             </Button>
           )}
+          <Button
+            variant="contained"
+            color="primary"
+            onPress={finishQualification}
+            disabled={!canFinishQualification}
+          >
+            {getResource('host_qualification_finish')}
+          </Button>
         </Box>
       )}
 
@@ -219,6 +240,14 @@ export const MCDashboardScreen: React.FC = () => {
     </ScrollView>
   );
 };
+
+function judgesHaveSubmittedAllScores(params: {
+  judgesCount: number;
+  participantsCount: number;
+  scoresCount: number;
+}): boolean {
+  return params.scoresCount >= params.participantsCount * params.judgesCount;
+}
 
 const styles = StyleSheet.create({
   scroll: {

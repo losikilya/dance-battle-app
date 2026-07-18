@@ -1,5 +1,5 @@
 import { Battle, BattleVote } from '../battle/types';
-import { DanceEvent } from '../event/types';
+import { BattleConfiguration, DanceEvent } from '../event/types';
 import { Judge } from '../judge/types';
 import { Participant, CheckInStatus } from '../participant/types';
 import {
@@ -33,6 +33,7 @@ export type QualificationFinishedEvent = AppEventMeta & {
 export type BracketGeneratedEvent = AppEventMeta & {
   type: 'bracket.generated';
   payload: {
+    format: BattleConfiguration['format'];
     battles: Battle[];
   };
 };
@@ -123,7 +124,33 @@ export type EventCreatedEvent = AppEventMeta & {
   type: 'event.created';
   payload: {
     event: DanceEvent;
-    judges: Judge[];
+  };
+};
+
+export type EventFinishedEvent = AppEventMeta & {
+  type: 'event.finished';
+  payload: Record<string, never>;
+};
+
+export type BattleConfiguredEvent = AppEventMeta & {
+  type: 'battle.configured';
+  payload: {
+    configuration: BattleConfiguration;
+  };
+};
+
+export type BattleJudgeAssignedEvent = AppEventMeta & {
+  type: 'battle.judgeAssigned';
+  payload: {
+    battleConfigurationId: string;
+    judge: Judge;
+  };
+};
+
+export type BattleConfigurationSelectedEvent = AppEventMeta & {
+  type: 'battle.configurationSelected';
+  payload: {
+    battleConfigurationId: string;
   };
 };
 
@@ -162,6 +189,10 @@ export type AppEvent =
   | QualificationTimerRestartedEvent
   | QualificationTimerExpiredEvent
   | EventCreatedEvent
+  | EventFinishedEvent
+  | BattleConfiguredEvent
+  | BattleJudgeAssignedEvent
+  | BattleConfigurationSelectedEvent
   | ParticipantAddedEvent
   | ParticipantRemovedEvent
   | ParticipantCheckInToggledEvent;

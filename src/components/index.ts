@@ -1,5 +1,6 @@
 export * from "./Avatar";
 export * from "./AvatarStack";
+export * from "./AppTopMenu";
 export * from "./Background";
 export * from "./Box";
 export * from "./Button";

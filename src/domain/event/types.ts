@@ -9,14 +9,22 @@ export type EventStatus =
   
 export type BattleFormat = 'top8' | 'top16' | 'top32';
 
+export type BattleConfiguration = {
+  id: string;
+  categoryTitle: string;
+  status: EventStatus;
+  format: BattleFormat | null;
+  assignedJudgeIds: string[];
+  qualificationDurationSeconds: number;
+  qualificationAdvanceMode: QualificationAdvanceMode;
+};
+
 export type DanceEvent = {
   id: string;
   title: string;
-  categoryTitle: string;
   status: EventStatus;
-  format: BattleFormat;
-  judgesCount: number;
-  qualificationDurationSeconds: number;
-  qualificationAdvanceMode: QualificationAdvanceMode;
+  battleConfiguration: BattleConfiguration | null;
+  battleConfigurations: BattleConfiguration[];
+  activeBattleConfigurationId: string | null;
   createdAt: string;
 };

@@ -1,10 +1,11 @@
 import { calculateBattleWinner } from '../battle/calculateBattleWinner';
-import { generateFinalFromSemifinals, generateSemifinalsFromTop8 } from '../battle/advanceWinner';
-import { generateTop8Bracket } from '../bracket/generateTop8Bracket';
+import { generateNextRound } from '../battle/advanceWinner';
+import { generateBracketFromParticipantIds } from '../bracket/generateBracket';
 import { calculateRanking } from '../qualification/calculateRanking';
 import { AppEvent } from '../sync/appEvent';
 import { createAppEvent } from '../sync/createAppEvent';
 import { BattleAppState } from '../sync/appState';
+import { getActiveBattleConfigurationId, isInBattleConfiguration } from '../sync/stateSelectors';
 import { createId } from '../../shared/lib/createId';
 import { AppCommand } from './command';
 import {
@@ -12,10 +13,10 @@ import {
   CommandHandlerResult,
   commandSuccess,
 } from './commandResult';
-import { DanceEvent } from '../event/types';
-import { Judge, JudgeRole } from '../judge/types';
+import { BattleConfiguration, DanceEvent } from '../event/types';
+import { Judge } from '../judge/types';
 import { CheckInStatus, Participant } from '../participant/types';
-import { QualificationTimerState } from '../qualification/types';
+import { QualificationScore, QualificationTimerState } from '../qualification/types';
 
 export function handleCommand(
   state: BattleAppState,
@@ -56,8 +57,8 @@ export function handleCommand(
     case 'qualification.finish':
       return handleFinishQualificationCommand(state);
 
-    case 'bracket.generateTop8':
-      return handleGenerateTop8Command(state);
+    case 'bracket.generate':
+      return handleGenerateBracketCommand(state, command);
 
     case 'battle.start':
       return handleStartBattleCommand(state, command);
@@ -74,8 +75,23 @@ export function handleCommand(
     case 'event.create':
       return handleCreateEventCommand(state, command);
 
+    case 'event.finish':
+      return handleFinishEventCommand(state);
+
+    case 'battle.configure':
+      return handleConfigureBattleCommand(state, command);
+
+    case 'battle.selectConfiguration':
+      return handleSelectBattleConfigurationCommand(state, command);
+
+    case 'battle.assignJudge':
+      return handleAssignBattleJudgeCommand(state, command);
+
     case 'participant.add':
       return handleAddParticipantCommand(state, command);
+
+    case 'participant.import':
+      return handleImportParticipantsCommand(state, command);
 
     case 'participant.remove':
       return handleRemoveParticipantCommand(state, command);
@@ -88,6 +104,71 @@ export function handleCommand(
   }
 }
 
+function getActiveBattleJudges(state: BattleAppState): Judge[] {
+  const assignedJudgeIds =
+    state.event.battleConfiguration?.assignedJudgeIds ?? [];
+
+  if (assignedJudgeIds.length === 0) {
+    return [];
+  }
+
+  return state.judges.filter((judge) => assignedJudgeIds.includes(judge.id));
+}
+
+function getActiveBattleParticipants(state: BattleAppState): Participant[] {
+  const configId = getActiveBattleConfigurationId(state.event);
+  return state.participants.filter((p) => isInBattleConfiguration(configId, p));
+}
+
+function getActiveBattleScores(state: BattleAppState): QualificationScore[] {
+  const activeParticipantIds = new Set(
+    getActiveBattleParticipants(state).map((p) => p.id),
+  );
+  const activeJudgeIds = new Set(
+    getActiveBattleJudges(state).map((j) => j.id),
+  );
+
+  return state.scores.filter(
+    (score) =>
+      activeParticipantIds.has(score.participantId) &&
+      activeJudgeIds.has(score.judgeId),
+  );
+}
+
+function getActiveBattles(state: BattleAppState): BattleAppState['battles'] {
+  const configId = getActiveBattleConfigurationId(state.event);
+  return state.battles.filter((b) => isInBattleConfiguration(configId, b));
+}
+
+function createStateForBattle(
+  state: BattleAppState,
+  battle: BattleAppState['battles'][number],
+): BattleAppState {
+  const battleConfigurationId = battle.battleConfigurationId;
+
+  if (!battleConfigurationId) {
+    return state;
+  }
+
+  const configuration = state.event.battleConfigurations.find(
+    (item) => item.id === battleConfigurationId,
+  );
+
+  if (!configuration) {
+    return state;
+  }
+
+  return {
+    ...state,
+    event: {
+      ...state.event,
+      battleConfiguration: configuration,
+      activeBattleConfigurationId: configuration.id,
+      status: configuration.status,
+    },
+  };
+}
+
 function handleResetEventCommand(): CommandHandlerResult {
   return commandSuccess([createAppEvent('event.reset', {})]);
 }
@@ -96,43 +177,79 @@ function handleStartQualificationCommand(
   state: BattleAppState,
   command: Extract<AppCommand, { type: 'qualification.start' }>,
 ): CommandHandlerResult {
-  if (state.event.status !== 'draft') {
+  const battleConfigurationId = command.payload.battleConfigurationId;
+  const configuration = battleConfigurationId
+    ? state.event.battleConfigurations.find(
+        (item) => item.id === battleConfigurationId,
+      )
+    : state.event.battleConfiguration;
+  const commandState = battleConfigurationId && configuration
+    ? {
+        ...state,
+        event: {
+          ...state.event,
+          battleConfiguration: configuration,
+          activeBattleConfigurationId: configuration.id,
+          status: configuration.status,
+        },
+      }
+    : state;
+
+  if (commandState.event.status !== 'draft') {
     return commandFailure(
       'invalid_status',
       'Qualification can be started only from draft status',
     );
   }
 
-  if (state.participants.length < 8) {
+  if (!commandState.event.battleConfiguration) {
     return commandFailure(
       'not_enough_data',
-      'At least 8 participants are required to start qualification',
+      'Battle must be configured before qualification starts',
     );
   }
 
-  if (state.judges.length === 0) {
+  const judges = getActiveBattleJudges(commandState);
+
+  if (judges.length === 0) {
     return commandFailure(
       'not_enough_data',
-      'At least one judge is required to start qualification',
+      'At least one assigned judge is required to start qualification',
     );
   }
 
-  const firstParticipant = state.participants[0];
+  const participants = getActiveBattleParticipants(commandState);
+  const firstParticipant = participants[0];
 
   if (!firstParticipant) {
     return commandFailure('not_found', 'First participant was not found');
   }
 
-  return commandSuccess([
+  const events: AppEvent[] = [];
+
+  if (
+    battleConfigurationId &&
+    state.event.activeBattleConfigurationId !== battleConfigurationId
+  ) {
+    events.push(
+      createAppEvent('battle.configurationSelected', {
+        battleConfigurationId,
+      }),
+    );
+  }
+
+  events.push(
     createAppEvent('qualification.started', {
       currentParticipantIndex: 0,
       timer: createRunningQualificationTimer(
         firstParticipant.id,
-        state.event.qualificationDurationSeconds,
+        commandState.event.battleConfiguration.qualificationDurationSeconds,
         command.createdAt,
       ),
     }),
-  ]);
+  );
+
+  return commandSuccess(events);
 }
 
 function handleSubmitQualificationScoreCommand(
@@ -148,7 +265,7 @@ function handleSubmitQualificationScoreCommand(
 
   const { participantId, judgeId, score } = command.payload;
 
-  const participantExists = state.participants.some(
+  const participantExists = getActiveBattleParticipants(state).some(
     (participant) => participant.id === participantId,
   );
 
@@ -156,7 +273,9 @@ function handleSubmitQualificationScoreCommand(
     return commandFailure('not_found', 'Participant was not found');
   }
 
-  const judgeExists = state.judges.some((judge) => judge.id === judgeId);
+  const judgeExists = getActiveBattleJudges(state).some(
+    (judge) => judge.id === judgeId,
+  );
 
   if (!judgeExists) {
     return commandFailure('not_found', 'Judge was not found');
@@ -188,8 +307,9 @@ function handleAdvanceQualificationParticipantCommand(
     );
   }
 
+  const participants = getActiveBattleParticipants(state);
   const isLastParticipant =
-    state.currentQualificationParticipantIndex >= state.participants.length - 1;
+    state.currentQualificationParticipantIndex >= participants.length - 1;
 
   if (isLastParticipant) {
     return commandFailure(
@@ -199,7 +319,7 @@ function handleAdvanceQualificationParticipantCommand(
   }
 
   const currentParticipant =
-    state.participants[state.currentQualificationParticipantIndex];
+    participants[state.currentQualificationParticipantIndex];
 
   if (!currentParticipant) {
     return commandFailure('not_found', 'Current participant was not found');
@@ -216,7 +336,7 @@ function handleAdvanceQualificationParticipantCommand(
   }
 
   const nextParticipantIndex = state.currentQualificationParticipantIndex + 1;
-  const nextParticipant = state.participants[nextParticipantIndex];
+  const nextParticipant = participants[nextParticipantIndex];
 
   if (!nextParticipant) {
     return commandFailure('not_found', 'Next participant was not found');
@@ -228,7 +348,7 @@ function handleAdvanceQualificationParticipantCommand(
       reason: command.payload.reason,
       timer: createRunningQualificationTimer(
         nextParticipant.id,
-        state.event.qualificationDurationSeconds,
+        state.event.battleConfiguration?.qualificationDurationSeconds ?? 60,
         command.createdAt,
       ),
     }),
@@ -314,7 +434,7 @@ function handleRestartQualificationTimerCommand(
   }
 
   const currentParticipant =
-    state.participants[state.currentQualificationParticipantIndex];
+    getActiveBattleParticipants(state)[state.currentQualificationParticipantIndex];
 
   if (!currentParticipant) {
     return commandFailure('not_found', 'Current participant was not found');
@@ -324,7 +444,7 @@ function handleRestartQualificationTimerCommand(
     createAppEvent('qualification.timerRestarted', {
       timer: createRunningQualificationTimer(
         currentParticipant.id,
-        state.event.qualificationDurationSeconds,
+        state.event.battleConfiguration?.qualificationDurationSeconds ?? 60,
         command.createdAt,
       ),
     }),
@@ -359,6 +479,7 @@ function handleExpireQualificationTimerCommand(
       timer: {
         ...timer,
         status: 'expired',
+        endsAt: null,
         remainingMsWhenPaused: null,
       },
     }),
@@ -375,9 +496,11 @@ function handleFinishQualificationCommand(
     );
   }
 
-  const expectedScoresCount = state.participants.length * state.judges.length;
+  const judges = getActiveBattleJudges(state);
+  const participants = getActiveBattleParticipants(state);
+  const expectedScoresCount = participants.length * judges.length;
 
-  if (state.scores.length < expectedScoresCount) {
+  if (getActiveBattleScores(state).length < expectedScoresCount) {
     return commandFailure(
       'not_enough_data',
       'All participants should receive scores from all judges',
@@ -387,41 +510,73 @@ function handleFinishQualificationCommand(
   return commandSuccess([createAppEvent('qualification.finished', {})]);
 }
 
-function handleGenerateTop8Command(
+function handleGenerateBracketCommand(
   state: BattleAppState,
+  command: Extract<AppCommand, { type: 'bracket.generate' }>,
 ): CommandHandlerResult {
   if (state.event.status !== 'qualification_finished') {
     return commandFailure(
       'invalid_status',
-      'Top 8 can be generated only after qualification is finished',
+      'Bracket can be generated only after qualification is finished',
     );
   }
 
-  if (state.battles.length > 0) {
+  const activeBattleConfigurationId = getActiveBattleConfigurationId(state.event);
+  const activeBattles = getActiveBattles(state);
+
+  if (activeBattles.length > 0) {
     return commandFailure(
       'action_not_allowed',
       'Bracket has already been generated',
     );
   }
 
-  const expectedScoresCount = state.participants.length * state.judges.length;
+  const judges = getActiveBattleJudges(state);
+  const participants = getActiveBattleParticipants(state);
+  const expectedScoresCount = participants.length * judges.length;
 
-  if (state.scores.length < expectedScoresCount) {
+  const activeScores = getActiveBattleScores(state);
+
+  if (activeScores.length < expectedScoresCount) {
     return commandFailure(
       'not_enough_data',
-      'Not enough qualification scores to generate Top 8',
+      'Not enough qualification scores to generate the bracket',
     );
   }
 
+  const participantIds = command.payload.participantIds;
+
+  if (participantIds.length < 2) {
+    return commandFailure('not_enough_data', 'At least 2 participants are required for bracket');
+  }
+
   const ranking = calculateRanking({
-    participants: state.participants,
-    scores: state.scores,
+    participants,
+    scores: activeScores,
   });
 
-  const battles = generateTop8Bracket(ranking);
+  const selectedParticipantSet = new Set(participantIds);
+  const selectedParticipantIds = ranking.map((item) => item.participantId).filter(
+    (participantId) => selectedParticipantSet.has(participantId),
+  );
+
+  if (selectedParticipantIds.length !== participantIds.length) {
+    return commandFailure(
+      'not_found',
+      'Bracket participants should be selected from qualification ranking',
+    );
+  }
+
+  const battles = generateBracketFromParticipantIds(selectedParticipantIds).map(
+    (battle) => ({
+      ...battle,
+      battleConfigurationId: activeBattleConfigurationId ?? undefined,
+    }),
+  );
 
   return commandSuccess([
     createAppEvent('bracket.generated', {
+      format: null,
       battles,
     }),
   ]);
@@ -431,19 +586,25 @@ function handleStartBattleCommand(
   state: BattleAppState,
   command: Extract<AppCommand, { type: 'battle.start' }>,
 ): CommandHandlerResult {
-  if (state.event.status !== 'battle') {
-    return commandFailure(
-      'invalid_status',
-      'Battle can be started only during battle stage',
-    );
-  }
-
   const battle = state.battles.find(
     (item) => item.id === command.payload.battleId,
   );
 
   if (!battle) {
     return commandFailure('not_found', 'Battle was not found');
+  }
+
+  const commandState = createStateForBattle(state, battle);
+
+  if (commandState.event.status !== 'battle') {
+    return commandFailure(
+      'invalid_status',
+      'Battle can be started only during battle stage',
+    );
+  }
+
+  if (!isInBattleConfiguration(getActiveBattleConfigurationId(commandState.event), battle)) {
+    return commandFailure('action_not_allowed', 'Battle is not part of the active category');
   }
 
   if (battle.status === 'finished') {
@@ -468,17 +629,23 @@ function handleOpenBattleVotingCommand(
   state: BattleAppState,
   command: Extract<AppCommand, { type: 'battle.openVoting' }>,
 ): CommandHandlerResult {
-  if (state.event.status !== 'battle') {
+  const battle = state.battles.find(b => b.id === command.payload.battleId);
+
+  if (!battle) {
+    return commandFailure('not_found', 'Battle not found');
+  }
+
+  const commandState = createStateForBattle(state, battle);
+
+  if (commandState.event.status !== 'battle') {
     return commandFailure(
       'invalid_status',
       'Voting can be opened only during battle stage',
     );
   }
 
-  const battle = state.battles.find(b => b.id === command.payload.battleId);
-
-  if (!battle) {
-    return commandFailure('not_found', 'Battle not found');
+  if (!isInBattleConfiguration(getActiveBattleConfigurationId(commandState.event), battle)) {
+    return commandFailure('action_not_allowed', 'Battle is not part of the active category');
   }
 
   if (battle.status !== 'active') {
@@ -497,19 +664,25 @@ function handleSubmitBattleVoteCommand(
   state: BattleAppState,
   command: Extract<AppCommand, { type: 'battle.submitVote' }>,
 ): CommandHandlerResult {
-  if (state.event.status !== 'battle') {
-    return commandFailure(
-      'invalid_status',
-      'Vote can be submitted only during battle stage',
-    );
-  }
-
   const { battleId, judgeId, winnerId } = command.payload;
 
   const battle = state.battles.find((item) => item.id === battleId);
 
   if (!battle) {
     return commandFailure('not_found', 'Battle was not found');
+  }
+
+  const commandState = createStateForBattle(state, battle);
+
+  if (commandState.event.status !== 'battle') {
+    return commandFailure(
+      'invalid_status',
+      'Vote can be submitted only during battle stage',
+    );
+  }
+
+  if (!isInBattleConfiguration(getActiveBattleConfigurationId(commandState.event), battle)) {
+    return commandFailure('action_not_allowed', 'Battle is not part of the active category');
   }
 
   if (battle.status === 'finished') {
@@ -523,14 +696,18 @@ function handleSubmitBattleVoteCommand(
     );
   }
 
-  const judgeExists = state.judges.some((judge) => judge.id === judgeId);
+  const activeJudges = getActiveBattleJudges(commandState);
+  const judgeExists = activeJudges.some((judge) => judge.id === judgeId);
 
   if (!judgeExists) {
     return commandFailure('not_found', 'Judge was not found');
   }
 
-  const isValidWinner =
-    winnerId === battle.participantAId || winnerId === battle.participantBId;
+  const battleParticipantIds = battle.participantIds ?? [
+    battle.participantAId,
+    battle.participantBId,
+  ];
+  const isValidWinner = battleParticipantIds.includes(winnerId);
 
   if (!isValidWinner) {
     return commandFailure(
@@ -553,7 +730,7 @@ function handleSubmitBattleVoteCommand(
     (vote) => vote.battleId === battleId,
   );
 
-  const allJudgesVoted = currentBattleVotes.length === state.judges.length;
+  const allJudgesVoted = currentBattleVotes.length === activeJudges.length;
 
   const events: AppEvent[] = [voteSubmittedEvent];
 
@@ -563,7 +740,7 @@ function handleSubmitBattleVoteCommand(
 
   const calculatedWinnerId = calculateBattleWinner({
     votes: currentBattleVotes,
-    judgesCount: state.judges.length,
+    judgesCount: activeJudges.length,
   });
 
   if (!calculatedWinnerId) {
@@ -590,41 +767,35 @@ function handleGenerateNextRoundCommand(
     );
   }
 
-  const top8Battles = state.battles.filter((battle) => battle.round === 'top8');
-
-  const semifinalBattles = state.battles.filter(
-    (battle) => battle.round === 'semifinal',
+  const activeBattleConfigurationId = getActiveBattleConfigurationId(state.event);
+  const activeBattles = getActiveBattles(state);
+  const rounds = ['custom', 'top32', 'top16', 'top8', 'semifinal'] as const;
+  const currentRound = [...rounds].reverse().find((round) =>
+    activeBattles.some((battle) => battle.round === round),
   );
 
-  const hasSemifinals = semifinalBattles.length > 0;
-  const hasFinal = state.battles.some((battle) => battle.round === 'final');
+  if (currentRound) {
+    const currentBattles = activeBattles.filter(
+      (battle) => battle.round === currentRound,
+    );
+    const nextRoundExists = activeBattles.some(
+      (battle) => battle.round !== currentRound &&
+        rounds.indexOf(battle.round as typeof rounds[number]) > rounds.indexOf(currentRound),
+    ) || activeBattles.some((battle) => battle.round === 'final');
 
-  const top8Finished =
-    top8Battles.length === 4 &&
-    top8Battles.every((battle) => battle.status === 'finished');
-
-  const semifinalsFinished =
-    semifinalBattles.length === 2 &&
-    semifinalBattles.every((battle) => battle.status === 'finished');
-
-  if (top8Finished && !hasSemifinals) {
-    const semifinals = generateSemifinalsFromTop8(top8Battles);
-
-    return commandSuccess([
-      createAppEvent('nextRound.generated', {
-        battles: semifinals,
-      }),
-    ]);
-  }
-
-  if (semifinalsFinished && !hasFinal) {
-    const final = generateFinalFromSemifinals(semifinalBattles);
-
-    return commandSuccess([
-      createAppEvent('nextRound.generated', {
-        battles: [final],
-      }),
-    ]);
+    if (
+      !nextRoundExists &&
+      currentBattles.every((battle) => battle.status === 'finished')
+    ) {
+      return commandSuccess([
+        createAppEvent('nextRound.generated', {
+          battles: generateNextRound(currentBattles).map((battle) => ({
+            ...battle,
+            battleConfigurationId: activeBattleConfigurationId ?? undefined,
+          })),
+        }),
+      ]);
+    }
   }
 
   return commandFailure(
@@ -637,33 +808,133 @@ function handleCreateEventCommand(
   _state: BattleAppState,
   command: Extract<AppCommand, { type: 'event.create' }>,
 ): CommandHandlerResult {
-  const {
-    title,
-    categoryTitle,
-    format,
-    judgesCount,
-    qualificationAdvanceMode,
-    qualificationDurationSeconds,
-  } = command.payload;
+  const { title } = command.payload;
   const newEvent: DanceEvent = {
     id: createId('event'),
     title,
+    battleConfiguration: null,
+    battleConfigurations: [],
+    activeBattleConfigurationId: null,
+    status: 'draft',
+    createdAt: new Date().toISOString(),
+  };
+  return commandSuccess([createAppEvent('event.created', { event: newEvent })]);
+}
+
+function handleFinishEventCommand(
+  state: BattleAppState,
+): CommandHandlerResult {
+  if (state.event.status === 'finished') {
+    return commandFailure(
+      'invalid_status',
+      'Event is already finished',
+    );
+  }
+
+  return commandSuccess([createAppEvent('event.finished', {})]);
+}
+
+function handleConfigureBattleCommand(
+  _state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.configure' }>,
+): CommandHandlerResult {
+  const {
     categoryTitle,
-    format,
-    judgesCount,
+    qualificationAdvanceMode,
+    qualificationDurationSeconds,
+  } = command.payload;
+
+  if (categoryTitle.trim().length === 0) {
+    return commandFailure('not_enough_data', 'Battle category is required');
+  }
+
+  const configuration: BattleConfiguration = {
+    id: createId('battle_config'),
+    categoryTitle: categoryTitle.trim(),
+    status: 'draft',
+    format: null,
+    assignedJudgeIds: [],
     qualificationDurationSeconds: normalizeQualificationDurationSeconds(
       qualificationDurationSeconds,
     ),
     qualificationAdvanceMode: qualificationAdvanceMode ?? 'manual',
-    status: 'draft',
-    createdAt: new Date().toISOString(),
   };
-  const judges: Judge[] = Array.from({ length: judgesCount }, (_, i) => ({
-    id: createId('judge'),
-    name: `Judge ${i + 1}`,
-    role: (i === 0 ? 'head' : 'standard') as JudgeRole,
-  }));
-  return commandSuccess([createAppEvent('event.created', { event: newEvent, judges })]);
+
+  return commandSuccess([
+    createAppEvent('battle.configured', {
+      configuration,
+    }),
+  ]);
+}
+
+function handleAssignBattleJudgeCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.assignJudge' }>,
+): CommandHandlerResult {
+  const battleConfigurationId =
+    command.payload.battleConfigurationId ??
+    state.event.activeBattleConfigurationId ??
+    state.event.battleConfiguration?.id;
+
+  if (!battleConfigurationId) {
+    return commandFailure('not_enough_data', 'Battle is not configured');
+  }
+
+  const configuration = state.event.battleConfigurations.find(
+    (item) => item.id === battleConfigurationId,
+  ) ?? state.event.battleConfiguration;
+
+  if (!configuration || configuration.id !== battleConfigurationId) {
+    return commandFailure('not_found', 'Battle configuration was not found');
+  }
+
+  const name = command.payload.name.trim();
+
+  if (name.length === 0) {
+    return commandFailure('not_enough_data', 'Judge name is required');
+  }
+
+  const existingJudge = state.judges.find(
+    (judge) =>
+      judge.deviceId === command.payload.deviceId &&
+      judge.battleConfigurationId === battleConfigurationId,
+  );
+
+  const judge: Judge = existingJudge
+    ? { ...existingJudge, name }
+    : {
+        id: createId('judge'),
+        name,
+        role: configuration.assignedJudgeIds.length === 0 ? 'head' : 'standard',
+        deviceId: command.payload.deviceId,
+        battleConfigurationId,
+      };
+
+  return commandSuccess([
+    createAppEvent('battle.judgeAssigned', {
+      battleConfigurationId,
+      judge,
+    }),
+  ]);
+}
+
+function handleSelectBattleConfigurationCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.selectConfiguration' }>,
+): CommandHandlerResult {
+  const configuration = state.event.battleConfigurations.find(
+    (item) => item.id === command.payload.battleConfigurationId,
+  );
+
+  if (!configuration) {
+    return commandFailure('not_found', 'Battle configuration was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('battle.configurationSelected', {
+      battleConfigurationId: configuration.id,
+    }),
+  ]);
 }
 
 function handleAddParticipantCommand(
@@ -671,11 +942,23 @@ function handleAddParticipantCommand(
   command: Extract<AppCommand, { type: 'participant.add' }>,
 ): CommandHandlerResult {
   const { name, number, crew, city } = command.payload;
-  if (state.participants.some(p => p.number === number)) {
+  const battleConfigurationId =
+    command.payload.battleConfigurationId ?? getActiveBattleConfigurationId(state.event);
+
+  if (!battleConfigurationId) {
+    return commandFailure('not_enough_data', 'Battle must be selected before adding participants');
+  }
+
+  const existingParticipants = state.participants.filter(
+    (p) => isInBattleConfiguration(battleConfigurationId, p),
+  );
+
+  if (existingParticipants.some(p => p.number === number)) {
     return commandFailure('invalid_number', 'Participant number already exists');
   }
   const participant: Participant = {
     id: createId('participant'),
+    battleConfigurationId,
     number,
     name,
     crew,
@@ -684,6 +967,87 @@ function handleAddParticipantCommand(
     status: 'registered',
   };
   return commandSuccess([createAppEvent('participant.added', { participant })]);
+}
+
+function handleImportParticipantsCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'participant.import' }>,
+): CommandHandlerResult {
+  const importedParticipants = command.payload.participants.map(
+    (participant) => ({
+      ...participant,
+      battleConfigurationId:
+        participant.battleConfigurationId ?? getActiveBattleConfigurationId(state.event),
+      name: participant.name.trim(),
+      crew: participant.crew?.trim() || undefined,
+      city: participant.city?.trim() || undefined,
+    }),
+  );
+
+  if (importedParticipants.length === 0) {
+    return commandFailure('not_enough_data', 'No participants to import');
+  }
+
+  const invalidParticipant = importedParticipants.find(
+    (participant) =>
+      participant.name.length === 0 ||
+      participant.battleConfigurationId === null ||
+      participant.battleConfigurationId === undefined ||
+      !Number.isInteger(participant.number) ||
+      participant.number <= 0,
+  );
+
+  if (invalidParticipant) {
+    return commandFailure(
+      'not_enough_data',
+      'Each imported participant needs a name and a positive number',
+    );
+  }
+
+  const importBattleConfigurationId =
+    importedParticipants[0]?.battleConfigurationId ?? getActiveBattleConfigurationId(state.event);
+
+  const existingNumbers = new Set(
+    state.participants
+      .filter((p) => isInBattleConfiguration(importBattleConfigurationId, p))
+      .map((p) => p.number),
+  );
+  const importNumbers = new Set<number>();
+
+  for (const participant of importedParticipants) {
+    if (existingNumbers.has(participant.number)) {
+      return commandFailure(
+        'invalid_number',
+        `Participant number ${participant.number} already exists`,
+      );
+    }
+
+    if (importNumbers.has(participant.number)) {
+      return commandFailure(
+        'invalid_number',
+        `Participant number ${participant.number} is duplicated in import`,
+      );
+    }
+
+    importNumbers.add(participant.number);
+  }
+
+  return commandSuccess(
+    importedParticipants.map((participant) =>
+      createAppEvent('participant.added', {
+        participant: {
+          id: createId('participant'),
+          battleConfigurationId: participant.battleConfigurationId ?? undefined,
+          number: participant.number,
+          name: participant.name,
+          crew: participant.crew,
+          city: participant.city,
+          checkIn: 'absent',
+          status: 'registered',
+        },
+      }),
+    ),
+  );
 }
 
 function handleRemoveParticipantCommand(

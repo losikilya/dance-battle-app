@@ -38,11 +38,17 @@ export const BattleResultScreen: React.FC = () => {
   const getParticipantName = (id: string) =>
     participants.find(p => p.id === id)?.name ?? 'Unknown';
 
+  const battleParticipantIds = battle.participantIds ?? [
+    battle.participantAId,
+    battle.participantBId,
+  ];
   const winner = participants.find(p => p.id === battle.winnerId);
-  const loserId = battle.participantAId === battle.winnerId
-    ? battle.participantBId
-    : battle.participantAId;
-  const loser = participants.find(p => p.id === loserId);
+  const otherParticipants = battleParticipantIds
+    .filter((participantId) => participantId !== battle.winnerId)
+    .map((participantId) => participants.find(p => p.id === participantId))
+    .filter((participant): participant is NonNullable<typeof participant> =>
+      participant !== undefined,
+    );
 
   const votesForWinner = votes.filter(v => v.winnerId === battle.winnerId).length;
   const votesForLoser = votes.length - votesForWinner;
@@ -72,11 +78,11 @@ export const BattleResultScreen: React.FC = () => {
         </Box>
       )}
 
-      {loser !== undefined && (
-        <Box mb={24}>
-          <DancerCard participant={loser} isWinner={false} />
+      {otherParticipants.map((participant) => (
+        <Box key={participant.id} mb={16}>
+          <DancerCard participant={participant} isWinner={false} />
         </Box>
-      )}
+      ))}
 
       <Box mb={24}>
         <Box mb={8}>
@@ -97,7 +103,7 @@ export const BattleResultScreen: React.FC = () => {
                 selfJudgeId,
               })}
               vote={vote}
-              participantAId={battle.participantAId}
+              participantIds={battleParticipantIds}
             />
           );
         })}

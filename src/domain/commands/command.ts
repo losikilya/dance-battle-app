@@ -6,7 +6,9 @@ export type CommandMeta = {
 
 export type StartQualificationCommand = CommandMeta & {
   type: 'qualification.start';
-  payload: Record<string, never>;
+  payload: {
+    battleConfigurationId?: string;
+  };
 };
 
 export type SubmitQualificationScoreCommand = CommandMeta & {
@@ -58,9 +60,11 @@ export type FinishQualificationCommand = CommandMeta & {
   payload: Record<string, never>;
 };
 
-export type GenerateTop8Command = CommandMeta & {
-  type: 'bracket.generateTop8';
-  payload: Record<string, never>;
+export type GenerateBracketCommand = CommandMeta & {
+  type: 'bracket.generate';
+  payload: {
+    participantIds: string[];
+  };
 };
 
 export type StartBattleCommand = CommandMeta & {
@@ -98,21 +102,60 @@ export type CreateEventCommand = CommandMeta & {
   type: 'event.create';
   payload: {
     title: string;
+  };
+};
+
+export type FinishEventCommand = CommandMeta & {
+  type: 'event.finish';
+  payload: Record<string, never>;
+};
+
+export type ConfigureBattleCommand = CommandMeta & {
+  type: 'battle.configure';
+  payload: {
     categoryTitle: string;
-    format: import('../event/types').BattleFormat;
-    judgesCount: number;
     qualificationDurationSeconds?: number;
     qualificationAdvanceMode?: import('../qualification/types').QualificationAdvanceMode;
+  };
+};
+
+export type SelectBattleConfigurationCommand = CommandMeta & {
+  type: 'battle.selectConfiguration';
+  payload: {
+    battleConfigurationId: string;
+  };
+};
+
+export type AssignBattleJudgeCommand = CommandMeta & {
+  type: 'battle.assignJudge';
+  payload: {
+    battleConfigurationId?: string;
+    deviceId: string;
+    name: string;
   };
 };
 
 export type AddParticipantCommand = CommandMeta & {
   type: 'participant.add';
   payload: {
+    battleConfigurationId?: string;
     name: string;
     number: number;
     crew?: string;
     city?: string;
+  };
+};
+
+export type ImportParticipantsCommand = CommandMeta & {
+  type: 'participant.import';
+  payload: {
+    participants: Array<{
+      name: string;
+      number: number;
+      battleConfigurationId?: string;
+      crew?: string;
+      city?: string;
+    }>;
   };
 };
 
@@ -136,14 +179,19 @@ export type AppCommand =
   | RestartQualificationTimerCommand
   | ExpireQualificationTimerCommand
   | FinishQualificationCommand
-  | GenerateTop8Command
+  | GenerateBracketCommand
   | StartBattleCommand
   | SubmitBattleVoteCommand
   | GenerateNextRoundCommand
   | OpenBattleVotingCommand
   | ResetEventCommand
   | CreateEventCommand
+  | FinishEventCommand
+  | ConfigureBattleCommand
+  | SelectBattleConfigurationCommand
+  | AssignBattleJudgeCommand
   | AddParticipantCommand
+  | ImportParticipantsCommand
   | RemoveParticipantCommand
   | ToggleParticipantCheckInCommand;
 
