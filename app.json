@@ -19,7 +19,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.selosik.versa",
-      "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
