@@ -143,6 +143,14 @@ export type UnassignBattleJudgeCommand = CommandMeta & {
   };
 };
 
+export type RenameBattleJudgeCommand = CommandMeta & {
+  type: 'battle.renameJudge';
+  payload: {
+    judgeId: string;
+    name: string;
+  };
+};
+
 export type AddParticipantCommand = CommandMeta & {
   type: 'participant.add';
   payload: {
@@ -199,6 +207,7 @@ export type AppCommand =
   | SelectBattleConfigurationCommand
   | AssignBattleJudgeCommand
   | UnassignBattleJudgeCommand
+  | RenameBattleJudgeCommand
   | AddParticipantCommand
   | ImportParticipantsCommand
   | RemoveParticipantCommand

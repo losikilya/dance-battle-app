@@ -90,6 +90,9 @@ export function handleCommand(
     case 'battle.unassignJudge':
       return handleUnassignBattleJudgeCommand(state, command);
 
+    case 'battle.renameJudge':
+      return handleRenameBattleJudgeCommand(state, command);
+
     case 'participant.add':
       return handleAddParticipantCommand(state, command);
 
@@ -958,6 +961,32 @@ function handleUnassignBattleJudgeCommand(
       battleConfigurationId,
       judgeId: judge.id,
       deviceId: command.payload.deviceId,
+    }),
+  ]);
+}
+
+function handleRenameBattleJudgeCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.renameJudge' }>,
+): CommandHandlerResult {
+  const name = command.payload.name.trim();
+
+  if (name.length === 0) {
+    return commandFailure('not_enough_data', 'Judge name is required');
+  }
+
+  const judge = state.judges.find(
+    (item) => item.id === command.payload.judgeId,
+  );
+
+  if (!judge) {
+    return commandFailure('not_found', 'Judge was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('battle.judgeRenamed', {
+      judgeId: judge.id,
+      name,
     }),
   ]);
 }

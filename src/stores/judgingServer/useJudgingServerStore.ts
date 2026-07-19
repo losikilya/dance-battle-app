@@ -59,6 +59,7 @@ type JudgingServerActions = {
   setManualHostOverride: (host: string) => void;
   clearManualHostOverride: () => Promise<void>;
   broadcastState: () => void;
+  renameClient: (deviceId: string, name: string) => void;
   assignClientRole: (deviceId: string, role: ClientRole) => void;
   assignClientAsJudge: (
     deviceId: string,
@@ -479,7 +480,7 @@ export const useJudgingServerStore = create<
     const client: ConnectedClient = {
       deviceId,
       judgeId: assignedJudgeId,
-      name: message.name?.trim() || 'Unknown',
+      name: (existingClient?.name ?? message.name?.trim()) || 'Unknown',
       role: assignedRole,
       isOnline: true,
     };
@@ -841,6 +842,22 @@ export const useJudgingServerStore = create<
         messageId: createId('message'),
         snapshot: getBattleSnapshot(),
       });
+    },
+
+    renameClient: (deviceId, name): void => {
+      const nextName = name.trim();
+
+      if (nextName.length === 0) {
+        return;
+      }
+
+      set((state) => ({
+        connectedClients: state.connectedClients.map((client) =>
+          client.deviceId === deviceId
+            ? { ...client, name: nextName }
+            : client,
+        ),
+      }));
     },
 
     assignClientRole: (deviceId, role): void => {

@@ -14,12 +14,19 @@ export default function ScanQrScreen(): React.JSX.Element {
   const router = useRouter();
   const setPendingAddress = useJudgingClientStore(s => s.setPendingAddress);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
+  const resetConnectionTarget = useJudgingClientStore(s => s.resetConnectionTarget);
   const setRole = useSessionStore(s => s.setRole);
   const judgeName = useSessionStore(s => s.judgeName);
   const requestedJudgeId = useSessionStore(s => s.judgeId);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  const handleEnterManually = () => {
+    setRole('spectator');
+    resetConnectionTarget();
+    router.replace('/(tabs)/live');
+  };
 
   const handleBarcodeScan = ({ data }: { data: string }) => {
     if (scanned) return;
@@ -36,6 +43,7 @@ export default function ScanQrScreen(): React.JSX.Element {
     }
 
     setRole('spectator');
+    resetConnectionTarget();
     setPendingAddress(null);
     connectToHost({
       host: parsedPayload.value.host,
@@ -68,7 +76,7 @@ export default function ScanQrScreen(): React.JSX.Element {
         <Button onPress={requestPermission}>
           {getResource('scan_qr_permission_button')}
         </Button>
-        <TouchableOpacity onPress={() => { void router.back(); }}>
+        <TouchableOpacity onPress={handleEnterManually}>
           <Text variant="body2" color="textSecondary" centered>
             {getResource('scan_qr_enter_manual')}
           </Text>
@@ -101,7 +109,7 @@ export default function ScanQrScreen(): React.JSX.Element {
         </Box>
 
         <Box style={styles.bottomBar} align="center" pb={48}>
-          <Button variant="outlined" color="secondary" onPress={() => { router.back(); }}>
+          <Button variant="outlined" color="secondary" onPress={handleEnterManually}>
             {getResource('scan_qr_enter_manual')}
           </Button>
         </Box>

@@ -41,7 +41,9 @@ export const HostDashboardScreen: React.FC = () => {
   const event = useDemoBattleStore(s => s.event);
   const judges = useDemoBattleStore(s => s.judges);
   const assignBattleJudge = useDemoBattleStore(s => s.assignBattleJudge);
+  const renameBattleJudge = useDemoBattleStore(s => s.renameBattleJudge);
   const connectedClients = useJudgingServerStore(s => s.connectedClients);
+  const renameClient = useJudgingServerStore(s => s.renameClient);
   const assignClientRole = useJudgingServerStore(s => s.assignClientRole);
   const assignClientAsJudge = useJudgingServerStore(s => s.assignClientAsJudge);
   const unassignClientAsJudge = useJudgingServerStore(s => s.unassignClientAsJudge);
@@ -57,6 +59,30 @@ export const HostDashboardScreen: React.FC = () => {
   const mc = connectedClients.find(c => c.role === 'mc');
   const spectators = connectedClients.filter(c => c.role === 'spectator' && c.isOnline);
   const battleConfigurations = event.battleConfigurations;
+  const isJudgeAssignedToBattle = (
+    judgeId: string | undefined,
+    battleConfigurationId: string,
+  ): boolean => {
+    if (!judgeId) {
+      return false;
+    }
+
+    return battleConfigurations.some(
+      (configuration) =>
+        configuration.id === battleConfigurationId &&
+        configuration.assignedJudgeIds.includes(judgeId),
+    );
+  };
+  const getAssignedJudgeForClientBattle = (
+    deviceId: string,
+    battleConfigurationId: string,
+  ) =>
+    judges.find(
+      (judge) =>
+        judge.deviceId === deviceId &&
+        judge.battleConfigurationId === battleConfigurationId &&
+        isJudgeAssignedToBattle(judge.id, battleConfigurationId),
+    );
   const assignJudgeToBattle = async (
     deviceId: string,
     name: string,
@@ -81,6 +107,33 @@ export const HostDashboardScreen: React.FC = () => {
   ): Promise<void> => {
     await unassignClientAsJudge(deviceId, battleConfigurationId);
   };
+  const renameConnectedClient = async (
+    deviceId: string,
+    name: string,
+  ): Promise<void> => {
+    const nextName = name.trim();
+
+    if (nextName.length === 0) {
+      return;
+    }
+
+    renameClient(deviceId, nextName);
+
+    const assignedJudges = judges.filter(
+      (judge) =>
+        judge.deviceId === deviceId &&
+        judge.battleConfigurationId !== undefined &&
+        isJudgeAssignedToBattle(judge.id, judge.battleConfigurationId),
+    );
+
+    for (const judge of assignedJudges) {
+      await assignBattleJudge({
+        battleConfigurationId: judge.battleConfigurationId,
+        deviceId,
+        name: nextName,
+      });
+    }
+  };
   const rosterListTitle =
     openRosterList === 'judges'
       ? getResource('dashboard_list_judges_title')
@@ -101,7 +154,8 @@ export const HostDashboardScreen: React.FC = () => {
       : null;
     const judgeActions = battleConfigurations.map((battleConfiguration) => {
       const isAssignedToBattle =
-        assignedJudge?.battleConfigurationId === battleConfiguration.id;
+        assignedJudge?.battleConfigurationId === battleConfiguration.id &&
+        isJudgeAssignedToBattle(assignedJudge.id, battleConfiguration.id);
 
       return {
         id: `assign_judge_${battleConfiguration.id}`,
@@ -130,6 +184,9 @@ export const HostDashboardScreen: React.FC = () => {
       title: client.name,
       subtitle: `${CLIENT_ROLE_LABELS[client.role]} · ${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}`,
       detail: client.deviceId,
+      onRename: (name) => {
+        void renameConnectedClient(client.deviceId, name);
+      },
       actions: [
         ...judgeActions,
         {
@@ -169,66 +226,81 @@ export const HostDashboardScreen: React.FC = () => {
       ],
     };
   });
-  const assignedJudgeItems: RosterListItem[] = judges.map((judge) => {
-    const configuration = battleConfigurations.find(
-      (item) => item.id === judge.battleConfigurationId,
-    );
-    const client = connectedClients.find(
-      (item) => item.deviceId === judge.deviceId,
-    );
+  const assignedJudgeItems: RosterListItem[] = judges
+    .filter((judge) =>
+      battleConfigurations.some((configuration) =>
+        configuration.assignedJudgeIds.includes(judge.id),
+      ) &&
+      !connectedClients.some((client) => client.deviceId === judge.deviceId),
+    )
+    .map((judge) => {
+      const configuration = battleConfigurations.find(
+        (item) =>
+          item.id === judge.battleConfigurationId &&
+          item.assignedJudgeIds.includes(judge.id),
+      );
+      const client = connectedClients.find(
+        (item) => item.deviceId === judge.deviceId,
+      );
 
-    return {
-      id: judge.id,
-      title: judge.name,
-      subtitle: `${getResource('configure_battle_role_judge')} · ${configuration?.categoryTitle ?? event.title}`,
-      detail: client
-        ? `${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')} · ${client.deviceId}`
-        : judge.role.toUpperCase(),
-      actions: judge.deviceId
-        ? battleConfigurations.map((battleConfiguration) => ({
-            id: `assign_judge_${battleConfiguration.id}`,
-            label: battleConfiguration.categoryTitle,
-            active: judge.battleConfigurationId === battleConfiguration.id,
-            onPress: () => {
-              if (judge.battleConfigurationId === battleConfiguration.id) {
-                void unassignJudgeFromBattle(
+      return {
+        id: judge.id,
+        title: judge.name,
+        subtitle: `${getResource('configure_battle_role_judge')} · ${configuration?.categoryTitle ?? event.title}`,
+        detail: client
+          ? `${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')} · ${client.deviceId}`
+          : judge.role.toUpperCase(),
+        onRename: (name) => {
+          void renameBattleJudge({
+            judgeId: judge.id,
+            name,
+          });
+        },
+        actions: judge.deviceId
+          ? battleConfigurations.map((battleConfiguration) => ({
+              id: `assign_judge_${battleConfiguration.id}`,
+              label: battleConfiguration.categoryTitle,
+              active: isJudgeAssignedToBattle(judge.id, battleConfiguration.id),
+              onPress: () => {
+                if (isJudgeAssignedToBattle(judge.id, battleConfiguration.id)) {
+                  void unassignJudgeFromBattle(
+                    judge.deviceId!,
+                    battleConfiguration.id,
+                  );
+                  return;
+                }
+
+                void assignJudgeToBattle(
                   judge.deviceId!,
+                  judge.name,
                   battleConfiguration.id,
                 );
-                return;
-              }
-
-              void assignJudgeToBattle(
-                judge.deviceId!,
-                judge.name,
-                battleConfiguration.id,
-              );
-            },
-          }))
-        : undefined,
-    };
-  });
+              },
+            }))
+          : undefined,
+      };
+    });
   const judgeCandidateItems: RosterListItem[] = connectedClients.map((client) => ({
     id: `candidate_${client.deviceId}`,
     title: client.name,
     subtitle: `${CLIENT_ROLE_LABELS[client.role]} · ${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}`,
     detail: client.deviceId,
+    onRename: (name) => {
+      void renameConnectedClient(client.deviceId, name);
+    },
     actions: battleConfigurations.map((configuration) => ({
       id: `assign_judge_${configuration.id}`,
       label: configuration.categoryTitle,
-      active: judges.some(
-        (judge) =>
-          judge.deviceId === client.deviceId &&
-          judge.battleConfigurationId === configuration.id,
-      ),
+      active:
+        getAssignedJudgeForClientBattle(client.deviceId, configuration.id) !==
+        undefined,
       onPress: () => {
-        if (
-          judges.some(
-            (judge) =>
-              judge.deviceId === client.deviceId &&
-              judge.battleConfigurationId === configuration.id,
-          )
-        ) {
+        const assignedJudge = getAssignedJudgeForClientBattle(
+          client.deviceId,
+          configuration.id,
+        );
+
+        if (assignedJudge) {
           void unassignJudgeFromBattle(client.deviceId, configuration.id);
           return;
         }
@@ -282,8 +354,8 @@ export const HostDashboardScreen: React.FC = () => {
       <Box direction="row" gap={12} mb={12}>
         <StatCard
           label={getResource('dashboard_stat_connected')}
-          value={onlineClients.length}
-          badge={getResource('dashboard_stat_active')}
+          value={connectedClients.length}
+          badge={`${onlineClients.length} ${getResource('dashboard_stat_online')}`}
           badgeColor={Colors.status.online}
           onPress={() => setOpenRosterList('connected')}
         />
@@ -340,7 +412,7 @@ export const HostDashboardScreen: React.FC = () => {
                   </Text>
                 </Box>
               </Box>
-              <Box direction="row" gap={8}>
+              <Box direction="row" gap={8} style={styles.roleActions}>
                 <TouchableOpacity
                   style={[styles.roleButton, client.role === 'judge' && styles.roleButtonActive]}
                   onPress={() => {
@@ -365,7 +437,9 @@ export const HostDashboardScreen: React.FC = () => {
                     }
                   }}
                 >
-                  <Text variant="body2">{getResource('configure_battle_role_judge')}</Text>
+                  <Text variant="body2" style={styles.roleButtonText} numberOfLines={1}>
+                    {getResource('configure_battle_role_judge')}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.roleButton, client.role === 'mc' && styles.roleButtonActive]}
@@ -387,7 +461,9 @@ export const HostDashboardScreen: React.FC = () => {
                     assignClientRole(client.deviceId, 'mc');
                   }}
                 >
-                  <Text variant="body2">{getResource('configure_battle_role_mc')}</Text>
+                  <Text variant="body2" style={styles.roleButtonText} numberOfLines={1}>
+                    {getResource('configure_battle_role_mc')}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.roleButton, client.role === 'spectator' && styles.roleButtonActive]}
@@ -407,7 +483,9 @@ export const HostDashboardScreen: React.FC = () => {
                     assignClientRole(client.deviceId, 'spectator');
                   }}
                 >
-                  <Text variant="body2">{getResource('discovery_role_spectator')}</Text>
+                  <Text variant="body2" style={styles.roleButtonText} numberOfLines={1}>
+                    {getResource('discovery_role_spectator')}
+                  </Text>
                 </TouchableOpacity>
               </Box>
             </Box>
@@ -461,13 +539,23 @@ const styles = StyleSheet.create({
   },
   roleButton: {
     flex: 1,
-    minHeight: 38,
+    minHeight: 40,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
     backgroundColor: Colors.dark.background,
+  },
+  roleActions: {
+    alignItems: 'stretch',
+  },
+  roleButtonText: {
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.56,
+    textAlign: 'center',
   },
   roleButtonActive: {
     borderColor: Colors.primary.main,

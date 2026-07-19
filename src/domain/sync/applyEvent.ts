@@ -311,6 +311,29 @@ export function applyEvent(
       };
     }
 
+    case "battle.judgeRenamed": {
+      const judge = state.judges.find(
+        (item) => item.id === event.payload.judgeId,
+      );
+
+      return {
+        ...state,
+        judges: state.judges.map((item) =>
+          item.id === event.payload.judgeId
+            ? { ...item, name: event.payload.name }
+            : item,
+        ),
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(
+            judge
+              ? `Judge "${judge.name}" renamed to "${event.payload.name}".`
+              : 'Judge renamed.',
+          ),
+        ],
+      };
+    }
+
     case "battle.configurationSelected": {
       const currentConfigurations = state.event.battleConfigurations ?? [];
       const selectedConfiguration = currentConfigurations.find(

@@ -38,7 +38,10 @@ export const JudgeConnectScreen: React.FC = () => {
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isBusy = status === "connecting" || status === "reconnecting";
-  const canConnect = address.trim().length > 0 && !isBusy;
+  const trimmedName = name.trim();
+  const canConnect =
+    address.trim().length > 0 && trimmedName.length > 0 && !isBusy;
+  const canConnectToLocal = trimmedName.length > 0 && !isBusy;
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -59,13 +62,13 @@ export const JudgeConnectScreen: React.FC = () => {
     }
 
     setValidationError(null);
-    setJudgeName(name.trim());
+    setJudgeName(trimmedName);
     setPendingAddress(null);
     connectToHost({
       host: parsedAddress.value.host,
       port: parsedAddress.value.port,
       role: clientRole,
-      name: name.trim() || undefined,
+      name: trimmedName,
       requestedJudgeId: requestedJudgeId ?? undefined,
     });
   };
@@ -109,14 +112,21 @@ export const JudgeConnectScreen: React.FC = () => {
             <Text variant="bodyBold">{connectionInfo.address}</Text>
           </Box>
           <Button
-            disabled={isBusy}
+            disabled={!canConnectToLocal}
             onPress={() => {
+              if (trimmedName.length === 0) {
+                setValidationError(getResource("judge_connect_name_required"));
+                return;
+              }
+
+              setValidationError(null);
+              setJudgeName(trimmedName);
               setPendingAddress(null);
               connectToHost({
                 host: connectionInfo.host,
                 port: connectionInfo.port,
                 role: clientRole,
-                name: name.trim() || undefined,
+                name: trimmedName,
               });
             }}
           >

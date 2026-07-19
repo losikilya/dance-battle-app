@@ -1,61 +1,67 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from "react";
+import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { Box, Button, Text } from '@components';
-import Colors from '@constants/Colors';
-import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
-import { getResource } from '@resources';
-import type { EventStatus } from '@domain/event/types';
-import type { Battle, BattleRound } from '@domain/battle/types';
-import { isInBattleConfiguration } from '@domain/sync/stateSelectors';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
-import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
-import { HostActionsMenu, type HostMenuAction } from '@screens/HostDashboardScreen/HostActionsMenu';
-import { QualificationControlCard } from '@screens/HostDashboardScreen/QualificationControlCard';
-import { RosterListModal, type RosterListItem } from '@screens/HostDashboardScreen/RosterListModal';
-import { StatCard } from '@screens/HostDashboardScreen/StatCard';
-import { BattleCard } from '@screens/BracketScreen/BattleCard';
+import { Box, Button, Text } from "@components";
+import Colors from "@constants/Colors";
+import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
+import { getResource } from "@resources";
+import type { EventStatus } from "@domain/event/types";
+import type { Battle, BattleRound } from "@domain/battle/types";
+import { isInBattleConfiguration } from "@domain/sync/stateSelectors";
+import { useDemoBattleStore } from "@stores/demoBattle/useDemoBattleStore";
+import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
+import { useSessionStore } from "@stores/session/useSessionStore";
+import {
+  HostActionsMenu,
+  type HostMenuAction,
+} from "@screens/HostDashboardScreen/HostActionsMenu";
+import { QualificationControlCard } from "@screens/HostDashboardScreen/QualificationControlCard";
+import {
+  RosterListModal,
+  type RosterListItem,
+} from "@screens/HostDashboardScreen/RosterListModal";
+import { StatCard } from "@screens/HostDashboardScreen/StatCard";
+import { BattleCard } from "@screens/BracketScreen/BattleCard";
 
 const statusLabels: Record<EventStatus, string> = {
-  draft: getResource('dashboard_status_draft'),
-  qualification: getResource('dashboard_status_qualification'),
-  qualification_finished: getResource('dashboard_status_ranking'),
-  battle: getResource('dashboard_status_battles'),
-  finished: getResource('dashboard_status_finished'),
+  draft: getResource("dashboard_status_draft"),
+  qualification: getResource("dashboard_status_qualification"),
+  qualification_finished: getResource("dashboard_status_ranking"),
+  battle: getResource("dashboard_status_battles"),
+  finished: getResource("dashboard_status_finished"),
 };
 
 const roundOrder: BattleRound[] = [
-  'final',
-  'semifinal',
-  'top8',
-  'top16',
-  'top32',
-  'custom',
+  "final",
+  "semifinal",
+  "top8",
+  "top16",
+  "top32",
+  "custom",
 ];
 
 const roundLabels: Record<BattleRound, string> = {
-  custom: getResource('bracket_round_custom'),
-  top32: getResource('bracket_round_top32'),
-  top16: getResource('bracket_round_top16'),
-  top8: getResource('bracket_round_top8'),
-  semifinal: getResource('bracket_round_semifinal'),
-  final: getResource('bracket_round_final'),
+  custom: getResource("bracket_round_custom"),
+  top32: getResource("bracket_round_top32"),
+  top16: getResource("bracket_round_top16"),
+  top8: getResource("bracket_round_top8"),
+  semifinal: getResource("bracket_round_semifinal"),
+  final: getResource("bracket_round_final"),
 };
 
 function canGenerateNextRoundForBattles(battles: Battle[]): boolean {
   const playableRoundOrder: BattleRound[] = [
-    'custom',
-    'top32',
-    'top16',
-    'top8',
-    'semifinal',
+    "custom",
+    "top32",
+    "top16",
+    "top8",
+    "semifinal",
   ];
-  const currentRound = [...playableRoundOrder].reverse().find((round) =>
-    battles.some((battle) => battle.round === round),
-  );
+  const currentRound = [...playableRoundOrder]
+    .reverse()
+    .find((round) => battles.some((battle) => battle.round === round));
 
   if (!currentRound) {
     return false;
@@ -70,26 +76,30 @@ function canGenerateNextRoundForBattles(battles: Battle[]): boolean {
       (battle) =>
         battle.round !== currentRound &&
         playableRoundOrder.indexOf(battle.round) > currentRoundIndex,
-    ) || battles.some((battle) => battle.round === 'final');
+    ) || battles.some((battle) => battle.round === "final");
 
   return (
     !nextRoundExists &&
     currentBattles.length > 0 &&
-    currentBattles.every((battle) => battle.status === 'finished')
+    currentBattles.every((battle) => battle.status === "finished")
   );
 }
 
-type BattleRosterList = 'participants' | 'judges' | 'mc';
+type BattleRosterList = "participants" | "judges" | "mc";
 
 export function BattleDashboardScreen(): React.JSX.Element {
   const router = useRouter();
-  const [openRosterList, setOpenRosterList] = useState<BattleRosterList | null>(null);
+  const [openRosterList, setOpenRosterList] = useState<BattleRosterList | null>(
+    null,
+  );
   const params = useLocalSearchParams<{ battleConfigurationId?: string }>();
-  const isHost = useSessionStore((state) => state.roles.includes('host'));
+  const isHost = useSessionStore((state) => state.roles.includes("host"));
   const event = useDemoBattleStore((state) => state.event);
   const judges = useDemoBattleStore((state) => state.judges);
   const participants = useDemoBattleStore((state) => state.participants);
-  const assignBattleJudge = useDemoBattleStore((state) => state.assignBattleJudge);
+  const assignBattleJudge = useDemoBattleStore(
+    (state) => state.assignBattleJudge,
+  );
   const selectBattleConfiguration = useDemoBattleStore(
     (state) => state.selectBattleConfiguration,
   );
@@ -133,7 +143,9 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const assignedJudges = judges.filter((judge) =>
     configuration.assignedJudgeIds.includes(judge.id),
   );
-  const connectedMcs = connectedClients.filter((client) => client.role === 'mc');
+  const connectedMcs = connectedClients.filter(
+    (client) => client.role === "mc",
+  );
   const assignJudgeToBattle = async (
     deviceId: string,
     name: string,
@@ -154,28 +166,32 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const unassignJudgeFromBattle = async (deviceId: string): Promise<void> => {
     await unassignClientAsJudge(deviceId, configuration.id);
   };
-  const battleParticipants = participants.filter(
-    (p) => isInBattleConfiguration(configuration.id, p),
+  const battleParticipants = participants.filter((p) =>
+    isInBattleConfiguration(configuration.id, p),
   );
-  const bracketBattles = battles.filter(
-    (b) => isInBattleConfiguration(configuration.id, b),
+  const bracketBattles = battles.filter((b) =>
+    isInBattleConfiguration(configuration.id, b),
   );
   const bracketParticipantIds = new Set(
     bracketBattles.flatMap((battle) => battle.participantIds),
   );
   const canGenerateNextRound = canGenerateNextRoundForBattles(bracketBattles);
   const rosterListTitle =
-    openRosterList === 'participants'
-      ? getResource('dashboard_list_participants_title')
-      : openRosterList === 'judges'
-        ? getResource('dashboard_list_judges_title')
-        : getResource('dashboard_list_mc_title');
-  const participantItems: RosterListItem[] = battleParticipants.map((participant) => ({
-    id: participant.id,
-    title: `#${String(participant.number).padStart(2, '0')} ${participant.name}`,
-    subtitle: [participant.crew, participant.city].filter(Boolean).join(' · '),
-    detail: `${participant.status.toUpperCase()} · ${participant.checkIn.toUpperCase()}`,
-  }));
+    openRosterList === "participants"
+      ? getResource("dashboard_list_participants_title")
+      : openRosterList === "judges"
+        ? getResource("dashboard_list_judges_title")
+        : getResource("dashboard_list_mc_title");
+  const participantItems: RosterListItem[] = battleParticipants.map(
+    (participant) => ({
+      id: participant.id,
+      title: `#${String(participant.number).padStart(2, "0")} ${participant.name}`,
+      subtitle: [participant.crew, participant.city]
+        .filter(Boolean)
+        .join(" · "),
+      detail: `${participant.status.toUpperCase()} · ${participant.checkIn.toUpperCase()}`,
+    }),
+  );
   const judgeItems: RosterListItem[] = [
     ...assignedJudges.map((judge) => {
       const client = connectedClients.find(
@@ -185,27 +201,27 @@ export function BattleDashboardScreen(): React.JSX.Element {
       return {
         id: judge.id,
         title: judge.name,
-        subtitle: `${getResource('configure_battle_role_judge')} · ${judge.role.toUpperCase()}`,
+        subtitle: `${getResource("configure_battle_role_judge")} · ${judge.role.toUpperCase()}`,
         detail: client
-          ? `${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')} · ${client.deviceId}`
+          ? `${client.isOnline ? getResource("dashboard_stat_online") : getResource("dashboard_stat_offline")} · ${client.deviceId}`
           : undefined,
         actions: judge.deviceId
           ? [
               {
                 id: `assign_judge_${configuration.id}`,
-                label: getResource('dashboard_list_unassign_judge'),
+                label: getResource("dashboard_list_unassign_judge"),
                 active: true,
                 onPress: () => {
                   void unassignJudgeFromBattle(judge.deviceId!);
                 },
               },
               {
-                id: 'assign_mc',
-                label: getResource('dashboard_list_assign_mc'),
-                active: client?.role === 'mc',
+                id: "assign_mc",
+                label: getResource("dashboard_list_assign_mc"),
+                active: client?.role === "mc",
                 onPress: () => {
                   void unassignJudgeFromBattle(judge.deviceId!).then(() => {
-                    assignClientRole(judge.deviceId!, 'mc');
+                    assignClientRole(judge.deviceId!, "mc");
                   });
                 },
               },
@@ -221,21 +237,21 @@ export function BattleDashboardScreen(): React.JSX.Element {
       .map((client) => ({
         id: client.deviceId,
         title: client.name,
-        subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}`,
+        subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource("dashboard_stat_online") : getResource("dashboard_stat_offline")}`,
         detail: client.deviceId,
         actions: [
           {
             id: `assign_judge_${configuration.id}`,
-            label: getResource('dashboard_list_assign_judge'),
+            label: getResource("dashboard_list_assign_judge"),
             onPress: () => {
               void assignJudgeToBattle(client.deviceId, client.name);
             },
           },
           {
-            id: 'assign_mc',
-            label: getResource('dashboard_list_assign_mc'),
-            active: client.role === 'mc',
-            onPress: () => assignClientRole(client.deviceId, 'mc'),
+            id: "assign_mc",
+            label: getResource("dashboard_list_assign_mc"),
+            active: client.role === "mc",
+            onPress: () => assignClientRole(client.deviceId, "mc"),
           },
         ],
       })),
@@ -243,23 +259,29 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const mcItems: RosterListItem[] = connectedClients.map((client) => ({
     id: client.deviceId,
     title: client.name,
-    subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}`,
+    subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource("dashboard_stat_online") : getResource("dashboard_stat_offline")}`,
     detail: client.deviceId,
     actions: [
       {
-        id: 'assign_mc',
-        label: getResource('dashboard_list_assign_mc'),
-        active: client.role === 'mc',
-        onPress: () => assignClientRole(client.deviceId, 'mc'),
+        id: "assign_mc",
+        label: getResource("dashboard_list_assign_mc"),
+        active: client.role === "mc",
+        onPress: () => assignClientRole(client.deviceId, "mc"),
       },
       {
         id: `assign_judge_${configuration.id}`,
-        label: assignedJudges.some((judge) => judge.deviceId === client.deviceId)
-          ? getResource('dashboard_list_unassign_judge')
-          : getResource('dashboard_list_assign_judge'),
-        active: assignedJudges.some((judge) => judge.deviceId === client.deviceId),
+        label: assignedJudges.some(
+          (judge) => judge.deviceId === client.deviceId,
+        )
+          ? getResource("dashboard_list_unassign_judge")
+          : getResource("dashboard_list_assign_judge"),
+        active: assignedJudges.some(
+          (judge) => judge.deviceId === client.deviceId,
+        ),
         onPress: () => {
-          if (assignedJudges.some((judge) => judge.deviceId === client.deviceId)) {
+          if (
+            assignedJudges.some((judge) => judge.deviceId === client.deviceId)
+          ) {
             void unassignJudgeFromBattle(client.deviceId);
             return;
           }
@@ -268,30 +290,32 @@ export function BattleDashboardScreen(): React.JSX.Element {
         },
       },
       {
-        id: 'assign_spectator',
-        label: getResource('dashboard_list_assign_spectator'),
-        active: client.role === 'spectator',
+        id: "assign_spectator",
+        label: getResource("dashboard_list_assign_spectator"),
+        active: client.role === "spectator",
         onPress: () => {
-          if (assignedJudges.some((judge) => judge.deviceId === client.deviceId)) {
+          if (
+            assignedJudges.some((judge) => judge.deviceId === client.deviceId)
+          ) {
             void unassignJudgeFromBattle(client.deviceId);
             return;
           }
 
-          assignClientRole(client.deviceId, 'spectator');
+          assignClientRole(client.deviceId, "spectator");
         },
       },
     ],
   }));
   const rosterItems =
-    openRosterList === 'participants'
+    openRosterList === "participants"
       ? participantItems
-      : openRosterList === 'judges'
+      : openRosterList === "judges"
         ? judgeItems
         : mcItems;
 
   const handleManageParticipants = (): void => {
     router.push({
-      pathname: '/participants',
+      pathname: "/participants",
       params: { battleConfigurationId: configuration.id },
     });
   };
@@ -315,7 +339,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
 
   const openBattleBrackets = async (): Promise<void> => {
     await ensureBattleContext();
-    router.push('/(tabs)/brackets');
+    router.push("/(tabs)/brackets");
   };
 
   const handleGenerateNextRound = async (): Promise<void> => {
@@ -324,53 +348,44 @@ export function BattleDashboardScreen(): React.JSX.Element {
   };
 
   const canStartQualification =
-    configuration.status === 'draft' &&
+    configuration.status === "draft" &&
     battleParticipants.length > 0 &&
     assignedJudges.length > 0;
   const battleActions: HostMenuAction[] = [
     {
-      id: 'participants',
-      label: getResource('dashboard_action_participants'),
-      icon: 'people-outline',
+      id: "participants",
+      label: getResource("dashboard_action_participants"),
+      icon: "people-outline",
       onPress: handleManageParticipants,
     },
     {
-      id: 'mock-qualification',
-      label: getResource('dashboard_action_mock_qualification'),
-      icon: 'checkmark-done-outline',
+      id: "mock-qualification",
+      label: getResource("dashboard_action_mock_qualification"),
+      icon: "checkmark-done-outline",
       onPress: () => {
         void handleMockQualification();
       },
       disabled:
-        configuration.status !== 'draft' &&
-        configuration.status !== 'qualification',
+        configuration.status !== "draft" &&
+        configuration.status !== "qualification",
     },
     {
-      id: 'start-qualification',
-      label: getResource('dashboard_action_start_qualification'),
-      icon: 'play-outline',
+      id: "start-qualification",
+      label: getResource("dashboard_action_start_qualification"),
+      icon: "play-outline",
       onPress: () => {
         void handleStartQualification();
       },
       disabled: !canStartQualification,
     },
     {
-      id: 'select-bracket-participants',
-      label: getResource('dashboard_bracket_cta_button'),
-      icon: 'git-network-outline',
+      id: "select-bracket-participants",
+      label: getResource("dashboard_bracket_cta_button"),
+      icon: "git-network-outline",
       onPress: () => {
         void openBattleBrackets();
       },
-      disabled: configuration.status !== 'qualification_finished',
-    },
-    {
-      id: 'battles',
-      label: getResource('dashboard_action_start_battles'),
-      icon: 'flash-outline',
-      onPress: () => {
-        void openBattleBrackets();
-      },
-      disabled: configuration.status !== 'battle',
+      disabled: configuration.status !== "qualification_finished",
     },
   ];
 
@@ -384,7 +399,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
         </TouchableOpacity>
-        <Text variant="bodyBold">{getResource('battle_dashboard_title')}</Text>
+        <Text variant="bodyBold">{getResource("battle_dashboard_title")}</Text>
         <HostActionsMenu actions={battleActions} />
       </Box>
 
@@ -394,51 +409,55 @@ export function BattleDashboardScreen(): React.JSX.Element {
         </Text>
         <Text variant="h1">{configuration.categoryTitle}</Text>
         <Text variant="body2" color="textSecondary">
-          {statusLabels[configuration.status]} · {configuration.format?.toUpperCase() ?? getResource('host_battles_format_pending')}
+          {statusLabels[configuration.status]} ·{" "}
+          {configuration.format?.toUpperCase() ??
+            getResource("host_battles_format_pending")}
         </Text>
       </Box>
 
       <Box direction="row" gap={12} mb={12}>
         <StatCard
-          label={getResource('battle_dashboard_participants')}
+          label={getResource("battle_dashboard_participants")}
           value={battleParticipants.length}
           onPress={handleManageParticipants}
         />
         <StatCard
-          label={getResource('battle_dashboard_judges')}
+          label={getResource("battle_dashboard_judges")}
           value={assignedJudges.length}
-          onPress={() => setOpenRosterList('judges')}
+          onPress={() => setOpenRosterList("judges")}
         />
       </Box>
       <Box direction="row" gap={12} mb={20}>
         <StatCard
-          label={getResource('dashboard_stat_mc')}
+          label={getResource("dashboard_stat_mc")}
           value={connectedMcs.length}
           badge={
             connectedMcs.some((client) => client.isOnline)
-              ? getResource('dashboard_stat_online')
-              : getResource('dashboard_stat_offline')
+              ? getResource("dashboard_stat_online")
+              : getResource("dashboard_stat_offline")
           }
           badgeColor={
             connectedMcs.some((client) => client.isOnline)
               ? Colors.status.online
               : Colors.text.secondary
           }
-          onPress={() => setOpenRosterList('mc')}
+          onPress={() => setOpenRosterList("mc")}
         />
       </Box>
 
-      {configuration.status === 'qualification' && <QualificationControlCard />}
+      {configuration.status === "qualification" && <QualificationControlCard />}
 
       <Box style={styles.card} p={16} gap={12} mb={24}>
         <Box direction="row" align="center" justify="space-between" gap={12}>
           <Box gap={4} style={styles.bracketHeader}>
-            <Text variant="bodyBold">{getResource('bracket_title')}</Text>
+            <Text variant="bodyBold">{getResource("bracket_title")}</Text>
             <Text variant="body2" color="textSecondary">
-              {getResource('bracket_participants_prefix')} {String(bracketParticipantIds.size).padStart(2, '0')} / {String(battleParticipants.length).padStart(2, '0')}
+              {getResource("bracket_participants_prefix")}{" "}
+              {String(bracketParticipantIds.size).padStart(2, "0")} /{" "}
+              {String(battleParticipants.length).padStart(2, "0")}
             </Text>
           </Box>
-          {configuration.status === 'battle' && canGenerateNextRound && (
+          {configuration.status === "battle" && canGenerateNextRound && (
             <Button
               variant="outlined"
               color="secondary"
@@ -446,7 +465,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
                 void handleGenerateNextRound();
               }}
             >
-              {getResource('bracket_next_round_button')}
+              {getResource("bracket_next_round_button")}
             </Button>
           )}
         </Box>
@@ -454,7 +473,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
         {bracketBattles.length === 0 ? (
           <Box style={styles.placeholder} p={20} align="center">
             <Text variant="body2" color="textSecondary" centered>
-              {getResource('bracket_placeholder')}
+              {getResource("bracket_placeholder")}
             </Text>
           </Box>
         ) : (
@@ -482,14 +501,19 @@ export function BattleDashboardScreen(): React.JSX.Element {
       </Box>
 
       <Box style={styles.card} p={16} gap={12}>
-        <Text variant="bodyBold">{getResource('battle_dashboard_judges')}</Text>
+        <Text variant="bodyBold">{getResource("battle_dashboard_judges")}</Text>
         {assignedJudges.length === 0 ? (
           <Text variant="body2" color="textSecondary">
-            {getResource('battle_dashboard_no_judges')}
+            {getResource("battle_dashboard_no_judges")}
           </Text>
         ) : (
           assignedJudges.map((judge) => (
-            <Box key={judge.id} direction="row" align="center" justify="space-between">
+            <Box
+              key={judge.id}
+              direction="row"
+              align="center"
+              justify="space-between"
+            >
               <Text variant="bodyBold">{judge.name}</Text>
               <Text variant="body2" color="textSecondary">
                 {judge.role.toUpperCase()}
@@ -505,7 +529,6 @@ export function BattleDashboardScreen(): React.JSX.Element {
         items={rosterItems}
         onClose={() => setOpenRosterList(null)}
       />
-
     </ScrollView>
   );
 }

@@ -24,6 +24,9 @@ export const DiscoveryScreen: React.FC = () => {
   const serverStatus = useJudgingServerStore(s => s.status);
   const connectionInfo = useJudgingServerStore(s => s.connectionInfo);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
+  const resetConnectionTarget = useJudgingClientStore(
+    s => s.resetConnectionTarget,
+  );
   const stopServer = useJudgingServerStore(s => s.stopServer);
   const deleteLocalEvent = useDemoBattleStore(s => s.deleteLocalEvent);
   const localEventTitle = useDemoBattleStore(s => s.event.title.trim());
@@ -92,6 +95,7 @@ export const DiscoveryScreen: React.FC = () => {
 
   const handleEnterManually = () => {
     setRole('spectator');
+    resetConnectionTarget();
     router.push('/(tabs)/live');
   };
 

@@ -91,6 +91,7 @@ type JudgingClientActions = {
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
+  resetConnectionTarget: () => void;
   setPendingAddress: (address: string | null) => void;
 };
 
@@ -384,6 +385,7 @@ export const useJudgingClientStore = create<
       requestedJudgeId: params.requestedJudgeId ?? null,
       assignedJudgeId: null,
       assignedJudgeName: null,
+      syncedState: isReconnect ? state.syncedState : null,
       lastError: isReconnect ? state.lastError : null,
       error: isReconnect ? state.error : null,
       reconnectAttempts,
@@ -589,6 +591,29 @@ export const useJudgingClientStore = create<
         lastError: null,
         error: null,
         reconnectAttempts: 0,
+      });
+    },
+
+    resetConnectionTarget: (): void => {
+      clearReconnectTimer();
+      closeClientSocket();
+
+      reconnectAttempts = 0;
+      set({
+        status: 'disconnected',
+        host: null,
+        port: null,
+        serverAddress: null,
+        assignedJudgeId: null,
+        assignedJudgeName: null,
+        syncedState: null,
+        lastError: null,
+        error: null,
+        reconnectAttempts: 0,
+        role: null,
+        name: null,
+        requestedJudgeId: null,
+        pendingAddress: null,
       });
     },
 
