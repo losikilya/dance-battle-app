@@ -15,7 +15,7 @@ export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
   const { state, isHost } = useBattleState();
-  const role = useSessionStore(s => s.role);
+  const role = useSessionStore(s => s.roles.includes('host') ? 'host' : 'spectator');
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
 

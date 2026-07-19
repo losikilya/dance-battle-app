@@ -103,20 +103,6 @@ export const JudgeBattleVotingScreen: React.FC = () => {
             </Box>
           ) : (
             <>
-              <Box gap={12} mb={12}>
-                {battleParticipants.map((participant, index) => (
-                  <Button
-                    key={participant.id}
-                    variant={pendingVote === participant.id ? 'contained' : 'outlined'}
-                    color={pendingVote === participant.id ? 'primary' : 'secondary'}
-                    onPress={() => setPendingVote(participant.id)}
-                    disabled={!isVotingOpen}
-                  >
-                    {getResource('judge_vote_prefix')} {index + 1}
-                  </Button>
-                ))}
-              </Box>
-
               {pendingVote !== null && (
                 <Button
                   onPress={handleConfirm}

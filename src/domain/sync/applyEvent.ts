@@ -265,6 +265,52 @@ export function applyEvent(
       };
     }
 
+    case "battle.judgeUnassigned": {
+      const currentConfigurations = state.event.battleConfigurations ?? [];
+      const nextConfiguration = currentConfigurations.find(
+        (configuration) => configuration.id === event.payload.battleConfigurationId,
+      ) ?? state.event.battleConfiguration;
+
+      if (!nextConfiguration) {
+        return state;
+      }
+
+      const updatedConfiguration = {
+        ...nextConfiguration,
+        assignedJudgeIds: nextConfiguration.assignedJudgeIds.filter(
+          (judgeId) => judgeId !== event.payload.judgeId,
+        ),
+      };
+      const judge = state.judges.find(
+        (item) => item.id === event.payload.judgeId,
+      );
+
+      return {
+        ...state,
+        event: {
+          ...state.event,
+          battleConfiguration:
+            state.event.battleConfiguration?.id === updatedConfiguration.id
+              ? updatedConfiguration
+              : state.event.battleConfiguration,
+          battleConfigurations: currentConfigurations.map(
+            (configuration) =>
+              configuration.id === updatedConfiguration.id
+                ? updatedConfiguration
+                : configuration,
+          ),
+        },
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(
+            judge
+              ? `Judge "${judge.name}" unassigned.`
+              : 'Judge unassigned.',
+          ),
+        ],
+      };
+    }
+
     case "battle.configurationSelected": {
       const currentConfigurations = state.event.battleConfigurations ?? [];
       const selectedConfiguration = currentConfigurations.find(

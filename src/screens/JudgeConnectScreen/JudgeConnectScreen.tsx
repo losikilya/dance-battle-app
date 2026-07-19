@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { ScrollView, StyleSheet, TextInput } from "react-native";
+import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Box, Text, Button } from "@components";
 import Colors from "@constants/Colors";
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
@@ -10,10 +12,10 @@ import {
 } from "@stores/judgingClient/useJudgingClientStore";
 import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
-import type { ClientRole } from "@domain/sync/wsProtocol";
 import { parseManualAddress } from "../../infrastructure/network/connectionAddress";
 
 export const JudgeConnectScreen: React.FC = () => {
+  const router = useRouter();
   const status = useJudgingClientStore((s) => s.status);
   const lastError = useJudgingClientStore((s) => s.lastError);
   const reconnectAttempts = useJudgingClientStore((s) => s.reconnectAttempts);
@@ -25,12 +27,11 @@ export const JudgeConnectScreen: React.FC = () => {
   const connectionInfo = useJudgingServerStore((s) => s.connectionInfo);
   const serverStatus = useJudgingServerStore((s) => s.status);
 
-  const sessionRole = useSessionStore((s) => s.role);
   const requestedJudgeId = useSessionStore((s) => s.judgeId);
   const judgeName = useSessionStore((s) => s.judgeName);
   const setJudgeName = useSessionStore((s) => s.setJudgeName);
 
-  const clientRole: ClientRole = (sessionRole as ClientRole) ?? 'judge';
+  const clientRole = 'spectator' as const;
 
   const [address, setAddress] = useState(pendingAddress ?? serverAddress ?? "");
   const [name, setName] = useState(judgeName ?? "");
@@ -38,6 +39,15 @@ export const JudgeConnectScreen: React.FC = () => {
 
   const isBusy = status === "connecting" || status === "reconnecting";
   const canConnect = address.trim().length > 0 && !isBusy;
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/(auth)/discovery");
+  };
 
   const handleConnect = () => {
     if (!canConnect) return;
@@ -74,6 +84,15 @@ export const JudgeConnectScreen: React.FC = () => {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      <TouchableOpacity
+        style={styles.backButton}
+        accessibilityRole="button"
+        accessibilityLabel={getResource("judge_connect_back")}
+        onPress={handleBack}
+      >
+        <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
+      </TouchableOpacity>
+
       <Box gap={4} mb={32}>
         <Text variant="h1">{getResource("judge_connect_title")}</Text>
         <Text variant="body2" color="textSecondary">
@@ -97,7 +116,7 @@ export const JudgeConnectScreen: React.FC = () => {
                 host: connectionInfo.host,
                 port: connectionInfo.port,
                 role: clientRole,
-                name: "Demo Judge",
+                name: name.trim() || undefined,
               });
             }}
           >
@@ -168,6 +187,17 @@ const styles = StyleSheet.create({
     paddingTop: HEADER_HEIGHT + 24,
     paddingBottom: FOOTER_HEIGHT + 24,
     paddingHorizontal: 24,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    backgroundColor: Colors.dark.backgroundLight,
   },
   input: {
     borderWidth: 1,

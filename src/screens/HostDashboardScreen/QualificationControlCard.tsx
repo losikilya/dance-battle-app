@@ -10,7 +10,7 @@ import { getActiveBattleConfigurationId, isInBattleConfiguration } from '@domain
 
 export const QualificationControlCard: React.FC = () => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
+  const isHost = useSessionStore(s => s.roles.includes('host'));
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const participants = useDemoBattleStore(s => s.participants);
   const judges = useDemoBattleStore(s => s.judges);
@@ -50,6 +50,7 @@ export const QualificationControlCard: React.FC = () => {
   const assignedJudges = judges.filter((judge) =>
     assignedJudgeIds.includes(judge.id),
   );
+  const displayRole = isHost ? 'host' : null;
 
   if (!currentParticipant) {
     return null;
@@ -106,7 +107,7 @@ export const QualificationControlCard: React.FC = () => {
                 {getJudgeDisplayName({
                   judgeId: judge.id,
                   judgeName: judge.name,
-                  role,
+                  role: displayRole,
                   selfJudgeId,
                 })}
               </Text>

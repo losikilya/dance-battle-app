@@ -109,6 +109,11 @@ type AssignBattleJudgeParams = {
   name: string;
 };
 
+type UnassignBattleJudgeParams = {
+  battleConfigurationId?: string;
+  deviceId: string;
+};
+
 export type HostDemoBattleParams = {
   categoryTitle?: string;
   participantsCount?: number;
@@ -133,6 +138,7 @@ type DemoBattleActions = {
   configureBattle: (params: ConfigureBattleParams) => Promise<string | null>;
   selectBattleConfiguration: (battleConfigurationId: string) => Promise<void>;
   assignBattleJudge: (params: AssignBattleJudgeParams) => Promise<string | null>;
+  unassignBattleJudge: (params: UnassignBattleJudgeParams) => Promise<void>;
   addParticipant: (params: AddParticipantParams) => void;
   importParticipants: (participants: ImportParticipantParams[]) => Promise<boolean>;
   removeParticipant: (participantId: string) => void;
@@ -899,6 +905,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           judge.deviceId === params.deviceId &&
           judge.battleConfigurationId === configurationId,
       )?.id ?? null;
+    },
+
+    unassignBattleJudge: async (params) => {
+      await executeCommand(createCommand("battle.unassignJudge", params));
     },
 
     addParticipant: async ({ battleConfigurationId, name, number, crew, city }) => {

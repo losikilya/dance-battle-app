@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { AppRole } from '@domain/role/types';
 
 type SessionState = {
-  role: AppRole | null;
   roles: AppRole[];
   lastHostRoles: AppRole[];
   lastHostSelfJudgeId: string | null;
@@ -27,24 +26,20 @@ function uniqueRoles(roles: AppRole[]): AppRole[] {
   return Array.from(new Set(roles));
 }
 
-function normalizeRoles(
-  primaryRole: AppRole | null,
-  roles: AppRole[],
-): AppRole[] {
-  if (primaryRole === null) {
+function normalizeRoles(roles: AppRole[]): AppRole[] {
+  if (roles.length === 0) {
     return [];
   }
 
-  if (primaryRole === 'host') {
+  if (roles.includes('host')) {
     return uniqueRoles(['host', 'spectator', ...roles]);
   }
 
-  return uniqueRoles([primaryRole, ...roles.filter(role => role !== 'host')]);
+  return uniqueRoles(['spectator', ...roles.filter(role => role !== 'host')]);
 }
 
 export const useSessionStore = create<SessionState & SessionActions>(
   (set, get) => ({
-    role: null,
     roles: [],
     lastHostRoles: [],
     lastHostSelfJudgeId: null,
@@ -56,31 +51,26 @@ export const useSessionStore = create<SessionState & SessionActions>(
     setRole: role =>
       set(state => {
         if (role === null) {
-          const lastHostRoles =
-            state.role === 'host' && state.roles.includes('host')
-              ? state.roles
-              : state.lastHostRoles;
+          const isHost = state.roles.includes('host');
+          const lastHostRoles = isHost ? state.roles : state.lastHostRoles;
 
           return {
-            role: null,
             roles: [],
             lastHostRoles,
-            lastHostSelfJudgeId:
-              state.role === 'host'
-                ? state.selfJudgeId
-                : state.lastHostSelfJudgeId,
+            lastHostSelfJudgeId: isHost
+              ? state.selfJudgeId
+              : state.lastHostSelfJudgeId,
             activeViewRole: null,
             selfJudgeId: null,
           };
         }
 
-        const roles =
-          role === 'host' && state.role === 'host'
-            ? normalizeRoles(role, state.roles)
-            : normalizeRoles(role, []);
+        const isCurrentHost = state.roles.includes('host');
+        const roles = role === 'host' && isCurrentHost
+          ? normalizeRoles(state.roles)
+          : normalizeRoles([role]);
 
         return {
-          role,
           roles,
           lastHostRoles: role === 'host' ? roles : state.lastHostRoles,
           activeViewRole: role,
@@ -90,12 +80,12 @@ export const useSessionStore = create<SessionState & SessionActions>(
 
     setRoles: roles =>
       set(state => {
-        const normalizedRoles = normalizeRoles(state.role, roles);
+        const normalizedRoles = normalizeRoles(roles);
+        const isHost = normalizedRoles.includes('host');
 
         return {
           roles: normalizedRoles,
-          lastHostRoles:
-            state.role === 'host' ? normalizedRoles : state.lastHostRoles,
+          lastHostRoles: isHost ? normalizedRoles : state.lastHostRoles,
           selfJudgeId: normalizedRoles.includes('judge')
             ? state.selfJudgeId
             : null,
@@ -104,10 +94,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
 
     toggleRole: role =>
       set(state => {
-        if (
-          state.role === 'host' &&
-          (role === 'host' || role === 'spectator')
-        ) {
+        if (role === 'spectator' || (state.roles.includes('host') && role === 'host')) {
           return state;
         }
 
@@ -117,7 +104,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
           : [...state.roles, role];
 
         return {
-          roles: normalizeRoles(state.role, roles),
+          roles: normalizeRoles(roles),
           selfJudgeId:
             role === 'judge' && hasRole ? null : state.selfJudgeId,
         };
@@ -130,7 +117,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
       set(state => ({
         selfJudgeId,
         lastHostSelfJudgeId:
-          state.role === 'host' ? selfJudgeId : state.lastHostSelfJudgeId,
+          state.roles.includes('host') ? selfJudgeId : state.lastHostSelfJudgeId,
       })),
     setJudgeId: judgeId => set({ judgeId }),
     setJudgeName: judgeName => set({ judgeName }),

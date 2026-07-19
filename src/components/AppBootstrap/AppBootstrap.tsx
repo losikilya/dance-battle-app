@@ -13,7 +13,7 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   const isHydrated = useDemoBattleStore(s => s.isHydrated);
   const isHydrating = useDemoBattleStore(s => s.isHydrating);
   const storageError = useDemoBattleStore(s => s.storageError);
-  const role = useSessionStore(s => s.role);
+  const isHost = useSessionStore(s => s.roles.includes('host'));
   const startServer = useJudgingServerStore(s => s.startServer);
 
   useEffect(() => {
@@ -21,10 +21,10 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   }, [hydrateFromStorage]);
 
   useEffect(() => {
-    if (isHydrated && role === 'host') {
+    if (isHydrated && isHost) {
       void startServer();
     }
-  }, [isHydrated, role, startServer]);
+  }, [isHydrated, isHost, startServer]);
 
   if (!isHydrated || isHydrating) {
     return (

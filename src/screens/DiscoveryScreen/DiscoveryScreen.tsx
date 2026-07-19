@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Box, Button, Text } from '@components';
@@ -11,15 +10,6 @@ import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerSto
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import type { AppRole } from '@domain/role/types';
-import type { ClientRole } from '@domain/sync/wsProtocol';
-
-const CLIENT_ROLES: ClientRole[] = ['judge', 'mc', 'spectator'];
-const ROLE_LABELS: Record<AppRole, string> = {
-  host: getResource('discovery_role_host'),
-  judge: getResource('discovery_role_judge'),
-  mc: getResource('discovery_role_mc'),
-  spectator: getResource('discovery_role_spectator'),
-};
 
 export const DiscoveryScreen: React.FC = () => {
   const router = useRouter();
@@ -36,16 +26,18 @@ export const DiscoveryScreen: React.FC = () => {
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
   const stopServer = useJudgingServerStore(s => s.stopServer);
   const deleteLocalEvent = useDemoBattleStore(s => s.deleteLocalEvent);
+  const localEventTitle = useDemoBattleStore(s => s.event.title.trim());
 
   const isLocalServerRunning = serverStatus === 'running' && connectionInfo !== null;
   const canRestoreStoredOwnEvent = hasCreatedEvent;
   const ownLocalEventRoles: AppRole[] = lastHostRoles.includes('host')
     ? lastHostRoles
     : ['host', 'spectator'];
-  const canRestoreOwnLocalEvent =
-    isLocalServerRunning || canRestoreStoredOwnEvent;
+  const canRestoreOwnLocalEvent = canRestoreStoredOwnEvent;
   const canDeleteOwnLocalEvent = canRestoreStoredOwnEvent;
-  const [selectedRole, setSelectedRole] = useState<ClientRole>('judge');
+  const localEventDescription = canRestoreStoredOwnEvent
+    ? getResource('discovery_local_reconnect')
+    : getResource('discovery_local_detected');
 
   const handleCreateEvent = () => {
     setRole('host');
@@ -54,12 +46,12 @@ export const DiscoveryScreen: React.FC = () => {
 
   const handleJoinLocal = () => {
     if (connectionInfo === null) return;
-    setRole(selectedRole);
+    setRole('spectator');
     connectToHost({
       host: connectionInfo.host,
       port: connectionInfo.port,
-      role: selectedRole,
-      name: `Demo ${ROLE_LABELS[selectedRole]}`,
+      role: 'spectator',
+      name: `Demo ${getResource('discovery_role_spectator')}`,
     });
     router.replace('/(tabs)');
   };
@@ -99,7 +91,8 @@ export const DiscoveryScreen: React.FC = () => {
   };
 
   const handleEnterManually = () => {
-    router.push('/(auth)/role-selection');
+    setRole('spectator');
+    router.push('/(tabs)/live');
   };
 
   return (
@@ -119,11 +112,18 @@ export const DiscoveryScreen: React.FC = () => {
 
       {canRestoreOwnLocalEvent && (
         <Box style={styles.localCard} p={16} gap={12} mb={32}>
-          <Box direction="row" align="center" justify="space-between" gap={12}>
-            <Box direction="row" align="center" gap={8}>
-              <View style={styles.onlineDot} />
-              <Text variant="body2" style={styles.onlineText}>
-                {getResource('discovery_local_detected')}
+          <Box direction="row" align="flex-start" justify="space-between" gap={12}>
+            <Box flex={1} gap={6}>
+              <Box direction="row" align="center" gap={8}>
+                <View style={styles.onlineDot} />
+                <Text variant="bodyBold" numberOfLines={2}>
+                  {localEventTitle.length > 0
+                    ? localEventTitle
+                    : getResource('discovery_local_reconnect')}
+                </Text>
+              </Box>
+              <Text variant="body2" color="textSecondary">
+                {localEventDescription}
               </Text>
             </Box>
             {canDeleteOwnLocalEvent && (
@@ -136,59 +136,15 @@ export const DiscoveryScreen: React.FC = () => {
               </TouchableOpacity>
             )}
           </Box>
-          <Text variant="bodyBold">
-            {connectionInfo?.address ?? getResource('discovery_local_reconnect')}
-          </Text>
 
           {!isLocalServerRunning || canRestoreStoredOwnEvent ? (
-            <>
-              <Box direction="row" gap={8} style={styles.roleChips}>
-                {ownLocalEventRoles.map(role => (
-                  <Box
-                    key={role}
-                    style={{ ...styles.roleChip, ...styles.roleChipSelected }}
-                    px={12}
-                    py={6}
-                  >
-                    <Text variant="body2" style={styles.roleChipTextSelected}>
-                      {ROLE_LABELS[role]}
-                    </Text>
-                  </Box>
-                ))}
-              </Box>
-
-              <Button onPress={handleConnectToOwnLocalEvent}>
-                {getResource('discovery_connect_own_local')}
-              </Button>
-            </>
+            <Button onPress={handleConnectToOwnLocalEvent}>
+              {getResource('discovery_connect_own_local')}
+            </Button>
           ) : (
-            <>
-              <Box direction="row" gap={8} style={styles.roleChips}>
-                {CLIENT_ROLES.map(r => (
-                  <Pressable key={r} onPress={() => setSelectedRole(r)}>
-                    <Box
-                      style={selectedRole === r
-                        ? { ...styles.roleChip, ...styles.roleChipSelected }
-                        : styles.roleChip
-                      }
-                      px={12}
-                      py={6}
-                    >
-                      <Text
-                        variant="body2"
-                        style={selectedRole === r ? styles.roleChipTextSelected : styles.roleChipText}
-                      >
-                        {ROLE_LABELS[r]}
-                      </Text>
-                    </Box>
-                  </Pressable>
-                ))}
-              </Box>
-
-              <Button onPress={handleJoinLocal}>
-                {getResource('discovery_join_local')}
-              </Button>
-            </>
+            <Button onPress={handleJoinLocal}>
+              {getResource('discovery_join_local')}
+            </Button>
           )}
         </Box>
       )}
@@ -238,28 +194,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.status.online,
-  },
-  onlineText: {
-    color: Colors.status.online,
-  },
-  roleChip: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border.subtle,
-    backgroundColor: Colors.dark.background,
-  },
-  roleChipSelected: {
-    borderColor: Colors.primary.main,
-    backgroundColor: Colors.dark.backgroundLight,
-  },
-  roleChips: {
-    flexWrap: 'wrap',
-  },
-  roleChipText: {
-    color: Colors.text.secondary,
-  },
-  roleChipTextSelected: {
-    color: Colors.primary.main,
   },
   deleteButton: {
     width: 40,

@@ -20,6 +20,7 @@ export type JoinMessage = SyncMessageMeta & {
 export type JoinedMessage = SyncMessageMeta & {
   type: 'joined';
   requestMessageId: string;
+  assignedRole: ClientRole;
   assignedJudgeId: string | null;
   snapshot: BattleAppState;
 };

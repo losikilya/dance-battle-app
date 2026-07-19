@@ -85,7 +85,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const router = useRouter();
   const [openRosterList, setOpenRosterList] = useState<BattleRosterList | null>(null);
   const params = useLocalSearchParams<{ battleConfigurationId?: string }>();
-  const role = useSessionStore((state) => state.role);
+  const isHost = useSessionStore((state) => state.roles.includes('host'));
   const event = useDemoBattleStore((state) => state.event);
   const judges = useDemoBattleStore((state) => state.judges);
   const participants = useDemoBattleStore((state) => state.participants);
@@ -112,6 +112,9 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const assignClientAsJudge = useJudgingServerStore(
     (state) => state.assignClientAsJudge,
   );
+  const unassignClientAsJudge = useJudgingServerStore(
+    (state) => state.unassignClientAsJudge,
+  );
   const battleConfigurationId = Array.isArray(params.battleConfigurationId)
     ? params.battleConfigurationId[0]
     : params.battleConfigurationId;
@@ -119,8 +122,8 @@ export function BattleDashboardScreen(): React.JSX.Element {
     (item) => item.id === battleConfigurationId,
   );
 
-  if (role !== 'host') {
-    return <Redirect href="/(auth)/role-selection" />;
+  if (!isHost) {
+    return <Redirect href="/(auth)/discovery" />;
   }
 
   if (!configuration) {
@@ -147,6 +150,9 @@ export function BattleDashboardScreen(): React.JSX.Element {
       deviceId,
       name,
     });
+  };
+  const unassignJudgeFromBattle = async (deviceId: string): Promise<void> => {
+    await unassignClientAsJudge(deviceId, configuration.id);
   };
   const battleParticipants = participants.filter(
     (p) => isInBattleConfiguration(configuration.id, p),
@@ -187,17 +193,21 @@ export function BattleDashboardScreen(): React.JSX.Element {
           ? [
               {
                 id: `assign_judge_${configuration.id}`,
-                label: getResource('dashboard_list_assign_judge'),
+                label: getResource('dashboard_list_unassign_judge'),
                 active: true,
                 onPress: () => {
-                  void assignJudgeToBattle(judge.deviceId!, judge.name);
+                  void unassignJudgeFromBattle(judge.deviceId!);
                 },
               },
               {
                 id: 'assign_mc',
                 label: getResource('dashboard_list_assign_mc'),
                 active: client?.role === 'mc',
-                onPress: () => assignClientRole(judge.deviceId!, 'mc'),
+                onPress: () => {
+                  void unassignJudgeFromBattle(judge.deviceId!).then(() => {
+                    assignClientRole(judge.deviceId!, 'mc');
+                  });
+                },
               },
             ]
           : undefined,
@@ -244,9 +254,16 @@ export function BattleDashboardScreen(): React.JSX.Element {
       },
       {
         id: `assign_judge_${configuration.id}`,
-        label: getResource('dashboard_list_assign_judge'),
+        label: assignedJudges.some((judge) => judge.deviceId === client.deviceId)
+          ? getResource('dashboard_list_unassign_judge')
+          : getResource('dashboard_list_assign_judge'),
         active: assignedJudges.some((judge) => judge.deviceId === client.deviceId),
         onPress: () => {
+          if (assignedJudges.some((judge) => judge.deviceId === client.deviceId)) {
+            void unassignJudgeFromBattle(client.deviceId);
+            return;
+          }
+
           void assignJudgeToBattle(client.deviceId, client.name);
         },
       },
@@ -254,7 +271,14 @@ export function BattleDashboardScreen(): React.JSX.Element {
         id: 'assign_spectator',
         label: getResource('dashboard_list_assign_spectator'),
         active: client.role === 'spectator',
-        onPress: () => assignClientRole(client.deviceId, 'spectator'),
+        onPress: () => {
+          if (assignedJudges.some((judge) => judge.deviceId === client.deviceId)) {
+            void unassignJudgeFromBattle(client.deviceId);
+            return;
+          }
+
+          assignClientRole(client.deviceId, 'spectator');
+        },
       },
     ],
   }));
@@ -378,7 +402,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
         <StatCard
           label={getResource('battle_dashboard_participants')}
           value={battleParticipants.length}
-          onPress={() => setOpenRosterList('participants')}
+          onPress={handleManageParticipants}
         />
         <StatCard
           label={getResource('battle_dashboard_judges')}

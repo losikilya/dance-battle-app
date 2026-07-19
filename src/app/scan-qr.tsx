@@ -9,13 +9,12 @@ import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { parseQrPayload } from '../infrastructure/network/connectionAddress';
-import type { ClientRole } from '@domain/sync/wsProtocol';
 
 export default function ScanQrScreen(): React.JSX.Element {
   const router = useRouter();
   const setPendingAddress = useJudgingClientStore(s => s.setPendingAddress);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
-  const sessionRole = useSessionStore(s => s.role);
+  const setRole = useSessionStore(s => s.setRole);
   const judgeName = useSessionStore(s => s.judgeName);
   const requestedJudgeId = useSessionStore(s => s.judgeId);
   const [permission, requestPermission] = useCameraPermissions();
@@ -36,28 +35,16 @@ export default function ScanQrScreen(): React.JSX.Element {
       return;
     }
 
-    const clientRole =
-      sessionRole === 'judge' ||
-      sessionRole === 'mc' ||
-      sessionRole === 'spectator'
-        ? (sessionRole as ClientRole)
-        : null;
-
-    if (clientRole) {
-      setPendingAddress(null);
-      connectToHost({
-        host: parsedPayload.value.host,
-        port: parsedPayload.value.port,
-        role: clientRole,
-        name: judgeName ?? undefined,
-        requestedJudgeId: requestedJudgeId ?? undefined,
-      });
-      router.replace('/(tabs)');
-      return;
-    }
-
-    setPendingAddress(parsedPayload.value.address);
-    router.replace('/(auth)/role-selection');
+    setRole('spectator');
+    setPendingAddress(null);
+    connectToHost({
+      host: parsedPayload.value.host,
+      port: parsedPayload.value.port,
+      role: 'spectator',
+      name: judgeName ?? undefined,
+      requestedJudgeId: requestedJudgeId ?? undefined,
+    });
+    router.replace('/(tabs)');
   };
 
   if (!permission) {

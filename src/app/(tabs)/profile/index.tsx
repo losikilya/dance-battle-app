@@ -10,9 +10,6 @@ export default function ProfileScreen(): React.JSX.Element {
       <Button onPress={() => router.push('/profile/judge')}>
         Open Judging Admin
       </Button>
-      <Button variant="outlined" color="secondary" onPress={() => router.push('/(auth)/role-selection')}>
-        Open Role Selection
-      </Button>
     </Box>
   );
 }

@@ -26,7 +26,6 @@ const RootWithQuery: React.FC = () => {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)/discovery" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)/role-selection" options={{ headerShown: false }} />
           <Stack.Screen name="participants" options={{ headerShown: false }} />
           <Stack.Screen name="battle-dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="create-event" options={{ headerShown: false }} />

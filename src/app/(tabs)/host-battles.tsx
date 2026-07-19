@@ -4,10 +4,10 @@ import { HostBattlesScreen } from '@screens/HostBattlesScreen';
 import { useSessionStore } from '@stores/session/useSessionStore';
 
 export default function HostBattlesRoute(): React.JSX.Element {
-  const role = useSessionStore((state) => state.role);
+  const isHost = useSessionStore((state) => state.roles.includes('host'));
 
-  if (role !== 'host') {
-    return <Redirect href="/(auth)/role-selection" />;
+  if (!isHost) {
+    return <Redirect href="/(auth)/discovery" />;
   }
 
   return <HostBattlesScreen />;

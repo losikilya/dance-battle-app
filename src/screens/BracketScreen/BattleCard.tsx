@@ -33,7 +33,7 @@ const ParticipantVoteRow: React.FC<ParticipantVoteRowProps> = ({ name, votes, is
 
 export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
+  const isHost = useSessionStore(s => s.roles.includes('host'));
   const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
   const getVotesForBattle = useDemoBattleStore(s => s.getVotesForBattle);
   const startBattle = useDemoBattleStore(s => s.startBattle);
@@ -49,7 +49,6 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
   ];
 
   const isFinished = battle.status === 'finished';
-  const isHost = role === 'host';
 
   const statusLabel = isFinished
     ? getResource('bracket_status_winner')

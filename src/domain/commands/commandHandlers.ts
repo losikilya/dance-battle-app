@@ -87,6 +87,9 @@ export function handleCommand(
     case 'battle.assignJudge':
       return handleAssignBattleJudgeCommand(state, command);
 
+    case 'battle.unassignJudge':
+      return handleUnassignBattleJudgeCommand(state, command);
+
     case 'participant.add':
       return handleAddParticipantCommand(state, command);
 
@@ -914,6 +917,47 @@ function handleAssignBattleJudgeCommand(
     createAppEvent('battle.judgeAssigned', {
       battleConfigurationId,
       judge,
+    }),
+  ]);
+}
+
+function handleUnassignBattleJudgeCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.unassignJudge' }>,
+): CommandHandlerResult {
+  const battleConfigurationId =
+    command.payload.battleConfigurationId ??
+    state.event.activeBattleConfigurationId ??
+    state.event.battleConfiguration?.id;
+
+  if (!battleConfigurationId) {
+    return commandFailure('not_enough_data', 'Battle is not configured');
+  }
+
+  const configuration = state.event.battleConfigurations.find(
+    (item) => item.id === battleConfigurationId,
+  ) ?? state.event.battleConfiguration;
+
+  if (!configuration || configuration.id !== battleConfigurationId) {
+    return commandFailure('not_found', 'Battle configuration was not found');
+  }
+
+  const judge = state.judges.find(
+    (item) =>
+      item.deviceId === command.payload.deviceId &&
+      item.battleConfigurationId === battleConfigurationId &&
+      configuration.assignedJudgeIds.includes(item.id),
+  );
+
+  if (!judge) {
+    return commandFailure('not_found', 'Assigned judge was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('battle.judgeUnassigned', {
+      battleConfigurationId,
+      judgeId: judge.id,
+      deviceId: command.payload.deviceId,
     }),
   ]);
 }

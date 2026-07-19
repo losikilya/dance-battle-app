@@ -135,6 +135,14 @@ export type AssignBattleJudgeCommand = CommandMeta & {
   };
 };
 
+export type UnassignBattleJudgeCommand = CommandMeta & {
+  type: 'battle.unassignJudge';
+  payload: {
+    battleConfigurationId?: string;
+    deviceId: string;
+  };
+};
+
 export type AddParticipantCommand = CommandMeta & {
   type: 'participant.add';
   payload: {
@@ -190,6 +198,7 @@ export type AppCommand =
   | ConfigureBattleCommand
   | SelectBattleConfigurationCommand
   | AssignBattleJudgeCommand
+  | UnassignBattleJudgeCommand
   | AddParticipantCommand
   | ImportParticipantsCommand
   | RemoveParticipantCommand

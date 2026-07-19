@@ -62,8 +62,12 @@ type JudgingServerActions = {
   assignClientRole: (deviceId: string, role: ClientRole) => void;
   assignClientAsJudge: (
     deviceId: string,
-    battleConfigurationId?: string,
+    battleConfigurationId: string,
   ) => Promise<string | null>;
+  unassignClientAsJudge: (
+    deviceId: string,
+    battleConfigurationId?: string,
+  ) => Promise<void>;
 };
 
 type UnknownMessage = {
@@ -77,6 +81,7 @@ const clientSockets = new Map<string, TcpSocketSocket>();
 let unsubscribeFromEventLog: (() => void) | null = null;
 let lastBroadcastEventIndex = 0;
 const BIND_HOST = '0.0.0.0';
+const SELF_HOST = '127.0.0.1';
 const MAX_PORT_ATTEMPTS = 5;
 
 function getErrorMessage(error: unknown): string {
@@ -313,12 +318,9 @@ export const useJudgingServerStore = create<
       return;
     }
 
+    applyAdvertisedHost(SELF_HOST, null, 'self-localhost');
     set({
-      hostIp: null,
-      localIp: null,
-      connectionInfo: null,
-      lastError:
-        'No usable LAN IPv4 address is available yet. Refresh after enabling Wi-Fi or Host hotspot.',
+      lastError: null,
       error: null,
     });
     console.log('[judging-server] no advertised host candidate', {
@@ -466,6 +468,7 @@ export const useJudgingServerStore = create<
       (client) => client.deviceId === deviceId,
     );
     const assignedJudgeId = existingClient?.judgeId ?? null;
+    const assignedRole = existingClient?.role ?? 'spectator';
 
     const previousSocket = clientSockets.get(deviceId);
     if (previousSocket && previousSocket !== socket) {
@@ -477,7 +480,7 @@ export const useJudgingServerStore = create<
       deviceId,
       judgeId: assignedJudgeId,
       name: message.name?.trim() || 'Unknown',
-      role: message.role,
+      role: assignedRole,
       isOnline: true,
     };
 
@@ -499,6 +502,7 @@ export const useJudgingServerStore = create<
       type: 'joined',
       messageId: createId('message'),
       requestMessageId: message.messageId,
+      assignedRole,
       assignedJudgeId,
       snapshot: getBattleSnapshot(),
     });
@@ -851,12 +855,33 @@ export const useJudgingServerStore = create<
             : client,
         ),
       }));
+
+      const client = get().connectedClients.find(
+        (item) => item.deviceId === deviceId,
+      );
+
+      if (!client) {
+        return;
+      }
+
+      sendToClient(deviceId, {
+        type: 'joined',
+        messageId: createId('message'),
+        requestMessageId: createId('message'),
+        assignedRole: role,
+        assignedJudgeId: role === 'judge' ? client.judgeId : null,
+        snapshot: getBattleSnapshot(),
+      });
     },
 
     assignClientAsJudge: async (
       deviceId,
       battleConfigurationId,
     ): Promise<string | null> => {
+      if (!battleConfigurationId) {
+        return null;
+      }
+
       const client = get().connectedClients.find(
         (item) => item.deviceId === deviceId,
       );
@@ -887,12 +912,41 @@ export const useJudgingServerStore = create<
         type: 'joined',
         messageId: createId('message'),
         requestMessageId: createId('message'),
+        assignedRole: 'judge',
         assignedJudgeId: judgeId,
         snapshot: getBattleSnapshot(),
       });
       get().broadcastState();
 
       return judgeId;
+    },
+
+    unassignClientAsJudge: async (
+      deviceId,
+      battleConfigurationId,
+    ): Promise<void> => {
+      await useDemoBattleStore.getState().unassignBattleJudge({
+        battleConfigurationId,
+        deviceId,
+      });
+
+      set((state) => ({
+        connectedClients: state.connectedClients.map((client) =>
+          client.deviceId === deviceId
+            ? { ...client, role: 'spectator', judgeId: null }
+            : client,
+        ),
+      }));
+
+      sendToClient(deviceId, {
+        type: 'joined',
+        messageId: createId('message'),
+        requestMessageId: createId('message'),
+        assignedRole: 'spectator',
+        assignedJudgeId: null,
+        snapshot: getBattleSnapshot(),
+      });
+      get().broadcastState();
     },
 
     restartServer: async (): Promise<void> => {

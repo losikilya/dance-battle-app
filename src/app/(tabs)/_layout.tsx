@@ -5,16 +5,21 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AppTopMenu, Icon, TabBar } from "@components";
 import Colors from "@constants/Colors";
 import { getResource } from "@resources";
+import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
 
 const windowHeight = Dimensions.get("window").height;
 const IOS = "ios";
 
 export default function TabLayout(): React.JSX.Element {
-  const role = useSessionStore((s) => s.role);
-  const isHost = role === "host";
+  const roles = useSessionStore((s) => s.roles);
+  const assignedClientRole = useJudgingClientStore((s) => s.role);
+  const effectiveRole = roles.includes("host")
+    ? "host"
+    : assignedClientRole ?? roles.find((item) => item !== "spectator") ?? "spectator";
+  const isHost = effectiveRole === "host";
 
-  if (!role) {
+  if (roles.length === 0) {
     return <Redirect href="/(auth)/discovery" />;
   }
 
@@ -25,6 +30,7 @@ export default function TabLayout(): React.JSX.Element {
           const state = navigation.getState();
           const hasNestedNavigation =
             Number(state.routes[state.index].state?.index ?? 0) > 0;
+          const shouldShowTabBar = isHost && !hasNestedNavigation;
 
           return {
             headerShown: false,
@@ -41,7 +47,7 @@ export default function TabLayout(): React.JSX.Element {
                   }),
               height: windowHeight * 0.1,
               paddingTop: 12,
-              display: hasNestedNavigation ? "none" : undefined,
+              display: shouldShowTabBar ? undefined : "none",
             },
             tabBarActiveTintColor: Colors.dark.tint,
           };
@@ -50,8 +56,9 @@ export default function TabLayout(): React.JSX.Element {
           const state = props.navigation.getState();
           const hasNestedNavigation =
             Number(state.routes[state.index].state?.index ?? 0) > 0;
+          const shouldShowTabBar = isHost && !hasNestedNavigation;
 
-          return hasNestedNavigation ? <View /> : <TabBar {...props} />;
+          return shouldShowTabBar ? <TabBar {...props} /> : <View />;
         }}
       >
         <Tabs.Screen

@@ -225,6 +225,7 @@ export const useJudgingClientStore = create<
         console.log('[judging-client] joined received');
         set({
           status: 'connected',
+          role: message.assignedRole,
           assignedJudgeId: message.assignedJudgeId,
           assignedJudgeName: getAssignedJudgeName(
             message.snapshot,
@@ -335,7 +336,7 @@ export const useJudgingClientStore = create<
         connectToParsedAddress(
           parsedAddress.ok ? parsedAddress.value : null,
           {
-            role,
+            role: 'spectator',
             name: name ?? undefined,
             requestedJudgeId: requestedJudgeId ?? undefined,
           },

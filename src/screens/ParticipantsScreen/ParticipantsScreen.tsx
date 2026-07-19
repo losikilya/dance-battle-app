@@ -19,7 +19,7 @@ const PAGE_SIZE = 20;
 export const ParticipantsScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams<{ battleConfigurationId?: string }>();
-  const role = useSessionStore(s => s.role);
+  const isHost = useSessionStore(s => s.roles.includes('host'));
   const participants = useDemoBattleStore(s => s.participants);
   const event = useDemoBattleStore(s => s.event);
   const addParticipant = useDemoBattleStore(s => s.addParticipant);
@@ -35,10 +35,10 @@ export const ParticipantsScreen: React.FC = () => {
   const [addCity, setAddCity] = useState('');
 
   useEffect(() => {
-    if (role !== 'host') {
-      router.replace('/(auth)/role-selection');
+    if (!isHost) {
+      router.replace('/(auth)/discovery');
     }
-  }, [role, router]);
+  }, [isHost, router]);
 
   const requestedBattleConfigurationId = Array.isArray(params.battleConfigurationId)
     ? params.battleConfigurationId[0]

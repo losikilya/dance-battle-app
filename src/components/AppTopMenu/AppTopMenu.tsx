@@ -62,7 +62,6 @@ export function AppTopMenu(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const role = useSessionStore((state) => state.role);
   const roles = useSessionStore((state) => state.roles);
   const setRole = useSessionStore((state) => state.setRole);
   const hasJudgeRole = useSessionStore((state) => state.hasRole("judge"));
@@ -104,7 +103,7 @@ export function AppTopMenu(): React.JSX.Element {
   };
 
   const hostActions: AppMenuAction[] =
-    role === "host"
+    roles.includes("host")
       ? [
           {
             id: "dashboard",

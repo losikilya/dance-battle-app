@@ -1,5 +1,6 @@
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
+import { Redirect } from 'expo-router';
 import { MCDashboardScreen } from '@screens/MCDashboardScreen';
 import { SpectatorLiveScreen } from '@screens/SpectatorLiveScreen';
 import { ConnectionLostScreen } from '@screens/ConnectionLostScreen';
@@ -9,11 +10,19 @@ import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 
 export default function LiveTab(): React.JSX.Element {
-  const role = useSessionStore(s => s.role);
+  const roles = useSessionStore(s => s.roles);
+  const assignedClientRole = useJudgingClientStore(s => s.role);
   const status = useJudgingClientStore(s => s.status);
   const serverAddress = useJudgingClientStore(s => s.serverAddress);
+  const effectiveRole = roles.includes('host')
+    ? 'host'
+    : assignedClientRole ?? roles.find((item) => item !== 'spectator') ?? 'spectator';
 
-  if (role !== 'mc' && role !== 'spectator') {
+  if (effectiveRole === 'judge') {
+    return <Redirect href="/(tabs)/judging" />;
+  }
+
+  if (effectiveRole !== 'mc' && effectiveRole !== 'spectator') {
     return (
       <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
         <Text variant="body2" color="textSecondary" centered>
@@ -24,7 +33,7 @@ export default function LiveTab(): React.JSX.Element {
   }
 
   if (status === 'connected') {
-    if (role === 'mc') return <MCDashboardScreen />;
+    if (effectiveRole === 'mc') return <MCDashboardScreen />;
     return <SpectatorLiveScreen />;
   }
 

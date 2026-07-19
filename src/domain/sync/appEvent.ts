@@ -147,6 +147,15 @@ export type BattleJudgeAssignedEvent = AppEventMeta & {
   };
 };
 
+export type BattleJudgeUnassignedEvent = AppEventMeta & {
+  type: 'battle.judgeUnassigned';
+  payload: {
+    battleConfigurationId: string;
+    judgeId: string;
+    deviceId: string;
+  };
+};
+
 export type BattleConfigurationSelectedEvent = AppEventMeta & {
   type: 'battle.configurationSelected';
   payload: {
@@ -192,6 +201,7 @@ export type AppEvent =
   | EventFinishedEvent
   | BattleConfiguredEvent
   | BattleJudgeAssignedEvent
+  | BattleJudgeUnassignedEvent
   | BattleConfigurationSelectedEvent
   | ParticipantAddedEvent
   | ParticipantRemovedEvent
