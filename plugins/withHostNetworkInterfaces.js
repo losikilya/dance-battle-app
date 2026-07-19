@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { withDangerousMod } = require('@expo/config-plugins');
 
-const MODULE_SOURCE = `package com.selosik.dancebattleapp
+const MODULE_SOURCE = `package com.selosik.versa
 
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -84,7 +84,7 @@ class HostNetworkInterfacesModule(
 }
 `;
 
-const PACKAGE_SOURCE = `package com.selosik.dancebattleapp
+const PACKAGE_SOURCE = `package com.selosik.versa
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
@@ -111,8 +111,8 @@ function writeNativeModule(projectRoot) {
     'main',
     'java',
     'com',
-    'anonymous',
-    'dancebattleapp',
+    'selosik',
+    'versa',
   );
 
   fs.mkdirSync(packageDir, { recursive: true });
@@ -135,8 +135,8 @@ function patchMainApplication(projectRoot) {
     'main',
     'java',
     'com',
-    'anonymous',
-    'dancebattleapp',
+    'selosik',
+    'versa',
     'MainApplication.kt',
   );
 
