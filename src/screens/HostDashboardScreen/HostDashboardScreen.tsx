@@ -36,6 +36,7 @@ type EventRosterList = 'connected' | 'judges' | 'mc' | 'spectators';
 export const HostDashboardScreen: React.FC = () => {
   const router = useRouter();
   const [openRosterList, setOpenRosterList] = useState<EventRosterList | null>(null);
+  const sessionRoles = useSessionStore(s => s.roles);
   const isHost = useSessionStore(s => s.roles.includes('host'));
   const activeViewRole = useSessionStore(s => s.activeViewRole ?? 'host');
   const event = useDemoBattleStore(s => s.event);
@@ -56,7 +57,10 @@ export const HostDashboardScreen: React.FC = () => {
 
   const onlineClients = connectedClients.filter(c => c.isOnline);
   const onlineJudges = connectedClients.filter(c => c.role === 'judge' && c.isOnline);
-  const mc = connectedClients.find(c => c.role === 'mc');
+  const connectedMcs = connectedClients.filter(c => c.role === 'mc');
+  const hasLocalMcRole = sessionRoles.includes('mc');
+  const mcCount = connectedMcs.length + (hasLocalMcRole ? 1 : 0);
+  const hasOnlineMc = hasLocalMcRole || connectedMcs.some(c => c.isOnline);
   const spectators = connectedClients.filter(c => c.role === 'spectator' && c.isOnline);
   const battleConfigurations = event.battleConfigurations;
   const isJudgeAssignedToBattle = (
@@ -233,6 +237,16 @@ export const HostDashboardScreen: React.FC = () => {
       ],
     };
   });
+  const localMcItems: RosterListItem[] = hasLocalMcRole
+    ? [
+        {
+          id: 'host_mc',
+          title: getResource('discovery_role_host'),
+          subtitle: `${getResource('configure_battle_role_mc')} · ${getResource('dashboard_stat_online')}`,
+          detail: getResource('discovery_role_host'),
+        },
+      ]
+    : [];
   const assignedJudgeItems: RosterListItem[] = judges
     .filter((judge) =>
       battleConfigurations.some((configuration) =>
@@ -321,6 +335,8 @@ export const HostDashboardScreen: React.FC = () => {
   const rosterItems: RosterListItem[] =
     openRosterList === 'judges'
       ? [...judgeCandidateItems, ...assignedJudgeItems]
+      : openRosterList === 'mc'
+        ? [...localMcItems, ...connectedClientItems]
       : connectedClientItems;
 
   if (activeViewRole !== 'host') {
@@ -375,9 +391,9 @@ export const HostDashboardScreen: React.FC = () => {
       <Box direction="row" gap={12} mb={24}>
         <StatCard
           label={getResource('dashboard_stat_mc')}
-          value={mc !== undefined ? '1' : '0'}
-          badge={mc?.isOnline === true ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}
-          badgeColor={mc?.isOnline === true ? Colors.status.online : Colors.text.secondary}
+          value={mcCount}
+          badge={hasOnlineMc ? getResource('dashboard_stat_online') : getResource('dashboard_stat_offline')}
+          badgeColor={hasOnlineMc ? Colors.status.online : Colors.text.secondary}
           onPress={() => setOpenRosterList('mc')}
         />
         <StatCard

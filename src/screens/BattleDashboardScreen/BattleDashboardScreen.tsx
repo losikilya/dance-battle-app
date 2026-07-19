@@ -24,6 +24,7 @@ import {
 } from "@screens/HostDashboardScreen/RosterListModal";
 import { StatCard } from "@screens/HostDashboardScreen/StatCard";
 import { BattleCard } from "@screens/BracketScreen/BattleCard";
+import { BattleJudgeScoreCard } from "./BattleJudgeScoreCard";
 
 const statusLabels: Record<EventStatus, string> = {
   draft: getResource("dashboard_status_draft"),
@@ -94,6 +95,12 @@ export function BattleDashboardScreen(): React.JSX.Element {
   );
   const params = useLocalSearchParams<{ battleConfigurationId?: string }>();
   const isHost = useSessionStore((state) => state.roles.includes("host"));
+  const sessionRoles = useSessionStore((state) => state.roles);
+  const hasJudgeRole = sessionRoles.includes("judge");
+  const hasMcRole = sessionRoles.includes("mc");
+  const hasTimerCompanionRole = isHost || hasMcRole;
+  const setRoles = useSessionStore((state) => state.setRoles);
+  const setSelfJudgeId = useSessionStore((state) => state.setSelfJudgeId);
   const event = useDemoBattleStore((state) => state.event);
   const judges = useDemoBattleStore((state) => state.judges);
   const participants = useDemoBattleStore((state) => state.participants);
@@ -146,6 +153,8 @@ export function BattleDashboardScreen(): React.JSX.Element {
   const connectedMcs = connectedClients.filter(
     (client) => client.role === "mc",
   );
+  const mcCount = connectedMcs.length + (hasMcRole ? 1 : 0);
+  const hasOnlineMc = hasMcRole || connectedMcs.some((client) => client.isOnline);
   const assignJudgeToBattle = async (
     deviceId: string,
     name: string,
@@ -168,6 +177,9 @@ export function BattleDashboardScreen(): React.JSX.Element {
   };
   const battleParticipants = participants.filter((p) =>
     isInBattleConfiguration(configuration.id, p),
+  );
+  const presentBattleParticipants = battleParticipants.filter(
+    (participant) => participant.checkIn === "present",
   );
   const bracketBattles = battles.filter((b) =>
     isInBattleConfiguration(configuration.id, b),
@@ -256,56 +268,69 @@ export function BattleDashboardScreen(): React.JSX.Element {
         ],
       })),
   ];
-  const mcItems: RosterListItem[] = connectedClients.map((client) => ({
-    id: client.deviceId,
-    title: client.name,
-    subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource("dashboard_stat_online") : getResource("dashboard_stat_offline")}`,
-    detail: client.deviceId,
-    actions: [
-      {
-        id: "assign_mc",
-        label: getResource("dashboard_list_assign_mc"),
-        active: client.role === "mc",
-        onPress: () => assignClientRole(client.deviceId, "mc"),
-      },
-      {
-        id: `assign_judge_${configuration.id}`,
-        label: assignedJudges.some(
-          (judge) => judge.deviceId === client.deviceId,
-        )
-          ? getResource("dashboard_list_unassign_judge")
-          : getResource("dashboard_list_assign_judge"),
-        active: assignedJudges.some(
-          (judge) => judge.deviceId === client.deviceId,
-        ),
-        onPress: () => {
-          if (
-            assignedJudges.some((judge) => judge.deviceId === client.deviceId)
-          ) {
-            void unassignJudgeFromBattle(client.deviceId);
-            return;
-          }
-
-          void assignJudgeToBattle(client.deviceId, client.name);
+  const localMcItems: RosterListItem[] = hasMcRole
+    ? [
+        {
+          id: "host_mc",
+          title: getResource("discovery_role_host"),
+          subtitle: `${getResource("configure_battle_role_mc")} · ${getResource("dashboard_stat_online")}`,
+          detail: getResource("discovery_role_host"),
         },
-      },
-      {
-        id: "assign_spectator",
-        label: getResource("dashboard_list_assign_spectator"),
-        active: client.role === "spectator",
-        onPress: () => {
-          if (
-            assignedJudges.some((judge) => judge.deviceId === client.deviceId)
-          ) {
-            void unassignJudgeFromBattle(client.deviceId);
-            return;
-          }
-
-          assignClientRole(client.deviceId, "spectator");
+      ]
+    : [];
+  const mcItems: RosterListItem[] = [
+    ...localMcItems,
+    ...connectedClients.map((client) => ({
+      id: client.deviceId,
+      title: client.name,
+      subtitle: `${client.role.toUpperCase()} · ${client.isOnline ? getResource("dashboard_stat_online") : getResource("dashboard_stat_offline")}`,
+      detail: client.deviceId,
+      actions: [
+        {
+          id: "assign_mc",
+          label: getResource("dashboard_list_assign_mc"),
+          active: client.role === "mc",
+          onPress: () => assignClientRole(client.deviceId, "mc"),
         },
-      },
-    ],
-  }));
+        {
+          id: `assign_judge_${configuration.id}`,
+          label: assignedJudges.some(
+            (judge) => judge.deviceId === client.deviceId,
+          )
+            ? getResource("dashboard_list_unassign_judge")
+            : getResource("dashboard_list_assign_judge"),
+          active: assignedJudges.some(
+            (judge) => judge.deviceId === client.deviceId,
+          ),
+          onPress: () => {
+            if (
+              assignedJudges.some((judge) => judge.deviceId === client.deviceId)
+            ) {
+              void unassignJudgeFromBattle(client.deviceId);
+              return;
+            }
+
+            void assignJudgeToBattle(client.deviceId, client.name);
+          },
+        },
+        {
+          id: "assign_spectator",
+          label: getResource("dashboard_list_assign_spectator"),
+          active: client.role === "spectator",
+          onPress: () => {
+            if (
+              assignedJudges.some((judge) => judge.deviceId === client.deviceId)
+            ) {
+              void unassignJudgeFromBattle(client.deviceId);
+              return;
+            }
+
+            assignClientRole(client.deviceId, "spectator");
+          },
+        },
+      ],
+    })),
+  ];
   const rosterItems =
     openRosterList === "participants"
       ? participantItems
@@ -332,6 +357,19 @@ export function BattleDashboardScreen(): React.JSX.Element {
     await startQualification(configuration.id);
   };
 
+  const handleAssignHostJudge = async (): Promise<void> => {
+    const judgeId = await assignBattleJudge({
+      battleConfigurationId: configuration.id,
+      deviceId: "host",
+      name: getResource("configure_battle_host_judge_name"),
+    });
+
+    if (judgeId) {
+      setRoles([...sessionRoles, "judge"]);
+      setSelfJudgeId(judgeId);
+    }
+  };
+
   const handleMockQualification = async (): Promise<void> => {
     await ensureBattleContext();
     await fillRandomQualificationScores();
@@ -349,8 +387,19 @@ export function BattleDashboardScreen(): React.JSX.Element {
 
   const canStartQualification =
     configuration.status === "draft" &&
-    battleParticipants.length > 0 &&
+    presentBattleParticipants.length > 0 &&
     assignedJudges.length > 0;
+  const startQualificationDisabledReason =
+    configuration.status !== "draft"
+      ? undefined
+      : presentBattleParticipants.length === 0
+        ? getResource("battle_dashboard_start_needs_present_participants")
+        : assignedJudges.length === 0
+          ? getResource("battle_dashboard_start_needs_judge")
+          : undefined;
+  const hasHostJudge = assignedJudges.some(
+    (judge) => judge.deviceId === "host",
+  );
   const battleActions: HostMenuAction[] = [
     {
       id: "participants",
@@ -372,6 +421,7 @@ export function BattleDashboardScreen(): React.JSX.Element {
     {
       id: "start-qualification",
       label: getResource("dashboard_action_start_qualification"),
+      description: startQualificationDisabledReason,
       icon: "play-outline",
       onPress: () => {
         void handleStartQualification();
@@ -430,14 +480,14 @@ export function BattleDashboardScreen(): React.JSX.Element {
       <Box direction="row" gap={12} mb={20}>
         <StatCard
           label={getResource("dashboard_stat_mc")}
-          value={connectedMcs.length}
+          value={mcCount}
           badge={
-            connectedMcs.some((client) => client.isOnline)
+            hasOnlineMc
               ? getResource("dashboard_stat_online")
               : getResource("dashboard_stat_offline")
           }
           badgeColor={
-            connectedMcs.some((client) => client.isOnline)
+            hasOnlineMc
               ? Colors.status.online
               : Colors.text.secondary
           }
@@ -445,7 +495,22 @@ export function BattleDashboardScreen(): React.JSX.Element {
         />
       </Box>
 
-      {configuration.status === "qualification" && <QualificationControlCard />}
+      {configuration.status === "qualification" &&
+        (hasJudgeRole && hasTimerCompanionRole ? (
+          <Box direction="row" gap={12} style={styles.qualificationWidgets}>
+            <Box flex={1} style={styles.qualificationWidget}>
+              <QualificationControlCard />
+            </Box>
+            <Box flex={1} style={styles.qualificationWidget}>
+              <BattleJudgeScoreCard />
+            </Box>
+          </Box>
+        ) : (
+          <>
+            <QualificationControlCard />
+            {hasJudgeRole && <BattleJudgeScoreCard />}
+          </>
+        ))}
 
       <Box style={styles.card} p={16} gap={12} mb={24}>
         <Box direction="row" align="center" justify="space-between" gap={12}>
@@ -501,7 +566,23 @@ export function BattleDashboardScreen(): React.JSX.Element {
       </Box>
 
       <Box style={styles.card} p={16} gap={12}>
-        <Text variant="bodyBold">{getResource("battle_dashboard_judges")}</Text>
+        <Box direction="row" align="center" justify="space-between" gap={12}>
+          <Text variant="bodyBold">{getResource("battle_dashboard_judges")}</Text>
+          {configuration.status === "draft" && !hasHostJudge && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={getResource("dashboard_action_self_assign_judge")}
+              style={styles.assignHostJudgeButton}
+              onPress={() => {
+                void handleAssignHostJudge();
+              }}
+            >
+              <Text variant="body2" color={Colors.secondary.main}>
+                {getResource("dashboard_action_self_assign_judge")}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </Box>
         {assignedJudges.length === 0 ? (
           <Text variant="body2" color="textSecondary">
             {getResource("battle_dashboard_no_judges")}
@@ -557,5 +638,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.subtle,
     backgroundColor: Colors.dark.background,
+  },
+  qualificationWidgets: {
+    flexWrap: "wrap",
+  },
+  qualificationWidget: {
+    minWidth: 280,
+  },
+  assignHostJudgeButton: {
+    alignSelf: "flex-start",
+    flexShrink: 0,
+    minHeight: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.secondary.dark,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
 });

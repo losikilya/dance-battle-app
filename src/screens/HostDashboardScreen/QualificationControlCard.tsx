@@ -1,56 +1,60 @@
-import { StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Box, Button, QualificationTimerDisplay, Text } from '@components';
-import Colors from '@constants/Colors';
-import { getResource } from '@resources';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
-import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
-import { getActiveBattleConfigurationId, isInBattleConfiguration } from '@domain/sync/stateSelectors';
+import { StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
+import { Box, Button, QualificationTimerDisplay, Text } from "@components";
+import Colors from "@constants/Colors";
+import { getResource } from "@resources";
+import { useDemoBattleStore } from "@stores/demoBattle/useDemoBattleStore";
+import { useSessionStore } from "@stores/session/useSessionStore";
+import { getJudgeDisplayName } from "../../shared/lib/getJudgeDisplayName";
+import {
+  getActiveBattleConfigurationId,
+  isInBattleConfiguration,
+} from "@domain/sync/stateSelectors";
 
 export const QualificationControlCard: React.FC = () => {
   const router = useRouter();
-  const isHost = useSessionStore(s => s.roles.includes('host'));
-  const selfJudgeId = useSessionStore(s => s.selfJudgeId);
-  const participants = useDemoBattleStore(s => s.participants);
-  const judges = useDemoBattleStore(s => s.judges);
-  const scores = useDemoBattleStore(s => s.scores);
+  const isHost = useSessionStore((s) => s.roles.includes("host"));
+  const selfJudgeId = useSessionStore((s) => s.selfJudgeId);
+  const participants = useDemoBattleStore((s) => s.participants);
+  const judges = useDemoBattleStore((s) => s.judges);
+  const scores = useDemoBattleStore((s) => s.scores);
   const currentQualificationParticipantIndex = useDemoBattleStore(
-    s => s.currentQualificationParticipantIndex,
+    (s) => s.currentQualificationParticipantIndex,
   );
-  const qualificationTimer = useDemoBattleStore(s => s.qualificationTimer);
-  const event = useDemoBattleStore(s => s.event);
+  const qualificationTimer = useDemoBattleStore((s) => s.qualificationTimer);
+  const event = useDemoBattleStore((s) => s.event);
   const getCurrentQualificationParticipant = useDemoBattleStore(
-    s => s.getCurrentQualificationParticipant,
+    (s) => s.getCurrentQualificationParticipant,
   );
   const getScoresForCurrentParticipant = useDemoBattleStore(
-    s => s.getScoresForCurrentParticipant,
+    (s) => s.getScoresForCurrentParticipant,
   );
   const canGoToNextQualificationParticipant = useDemoBattleStore(
-    s => s.canGoToNextQualificationParticipant,
+    (s) => s.canGoToNextQualificationParticipant,
   );
   const goToNextQualificationParticipant = useDemoBattleStore(
-    s => s.goToNextQualificationParticipant,
+    (s) => s.goToNextQualificationParticipant,
   );
   const canFinishQualification = useDemoBattleStore(
-    s => s.canFinishQualification,
+    (s) => s.canFinishQualification,
   );
-  const finishQualification = useDemoBattleStore(
-    s => s.finishQualification,
-  );
+  const finishQualification = useDemoBattleStore((s) => s.finishQualification);
 
   const currentParticipant = getCurrentQualificationParticipant();
   const currentParticipantScores =
     scores.length === 0 ? [] : getScoresForCurrentParticipant();
   const activeBattleConfigurationId = getActiveBattleConfigurationId(event);
-  const activeParticipants = participants.filter(
-    (p) => isInBattleConfiguration(activeBattleConfigurationId, p),
+  const activeParticipants = participants.filter((p) =>
+    isInBattleConfiguration(activeBattleConfigurationId, p),
   );
+  const isFinishQualificationAvailable = canFinishQualification();
+  const hasNextQualificationParticipant =
+    currentQualificationParticipantIndex < activeParticipants.length - 1;
   const assignedJudgeIds = event.battleConfiguration?.assignedJudgeIds ?? [];
   const assignedJudges = judges.filter((judge) =>
     assignedJudgeIds.includes(judge.id),
   );
-  const displayRole = isHost ? 'host' : null;
+  const displayRole = isHost ? "host" : null;
 
   if (!currentParticipant) {
     return null;
@@ -60,38 +64,41 @@ export const QualificationControlCard: React.FC = () => {
     <Box style={styles.card} p={20} gap={16} mb={24}>
       <Box gap={4}>
         <Text variant="bodyBold">
-          {getResource('host_qualification_title')}
+          {getResource("host_qualification_title")}
         </Text>
         <Text variant="body2" color="textSecondary">
-          {getResource('host_qualification_progress')}{' '}
-          {currentQualificationParticipantIndex + 1} / {activeParticipants.length}
+          {getResource("host_qualification_progress")}{" "}
+          {currentQualificationParticipantIndex + 1} /{" "}
+          {activeParticipants.length}
         </Text>
       </Box>
 
       <Box style={styles.participantCard} p={16} gap={4}>
         <Text variant="body2" color="primary">
-          #{String(currentParticipant.number).padStart(2, '0')}
+          #{String(currentParticipant.number).padStart(2, "0")}
         </Text>
         <Text variant="h2">{currentParticipant.name}</Text>
         <Text variant="body2" color="textSecondary">
           {[currentParticipant.crew, currentParticipant.city]
             .filter(Boolean)
-            .join(' · ')}
+            .join(" · ")}
         </Text>
       </Box>
 
       <QualificationTimerDisplay
         timer={qualificationTimer}
-        durationSeconds={event.battleConfiguration?.qualificationDurationSeconds ?? 60}
+        durationSeconds={
+          event.battleConfiguration?.qualificationDurationSeconds ?? 60
+        }
       />
 
       <Box gap={8}>
         <Text variant="body2" color="textSecondary">
-          {getResource('host_qualification_judge_scores')}
+          {getResource("host_qualification_judge_scores")}
         </Text>
-        {assignedJudges.map(judge => {
+        {assignedJudges.map((judge) => {
           const score = currentParticipantScores.find(
-            item => item.judgeId === judge.id,
+            (item) => item.judgeId === judge.id,
           )?.score;
 
           return (
@@ -113,10 +120,10 @@ export const QualificationControlCard: React.FC = () => {
               </Text>
               <Text
                 variant="bodyBold"
-                color={score === undefined ? 'textSecondary' : 'primary'}
+                color={score === undefined ? "textSecondary" : "primary"}
               >
                 {score === undefined
-                  ? getResource('host_qualification_not_scored')
+                  ? getResource("host_qualification_not_scored")
                   : `${score}/10`}
               </Text>
             </Box>
@@ -125,26 +132,29 @@ export const QualificationControlCard: React.FC = () => {
       </Box>
 
       <Box gap={12}>
-        <Button
-          disabled={!canGoToNextQualificationParticipant()}
-          onPress={() => {
-            void goToNextQualificationParticipant();
-          }}
-        >
-          {getResource('host_qualification_next')}
-        </Button>
-        <Button
-          variant="outlined"
-          color="secondary"
-          disabled={!canFinishQualification()}
-          onPress={() => {
-            void finishQualification().then(() => {
-              router.push('/(tabs)/brackets');
-            });
-          }}
-        >
-          {getResource('host_qualification_finish')}
-        </Button>
+        {hasNextQualificationParticipant && (
+          <Button
+            disabled={!canGoToNextQualificationParticipant()}
+            onPress={() => {
+              void goToNextQualificationParticipant();
+            }}
+          >
+            {getResource("host_qualification_next")}
+          </Button>
+        )}
+        {isFinishQualificationAvailable && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            onPress={() => {
+              void finishQualification().then(() => {
+                router.push("/(tabs)/brackets");
+              });
+            }}
+          >
+            {getResource("host_qualification_finish")}
+          </Button>
+        )}
       </Box>
     </Box>
   );

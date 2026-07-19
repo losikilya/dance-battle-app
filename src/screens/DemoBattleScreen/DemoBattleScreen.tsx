@@ -240,11 +240,12 @@ export function DemoBattleScreen() {
               disabled={!isNextParticipantAvailable}
             />
 
-            <Button
-              title="Finish qualification"
-              onPress={finishQualification}
-              disabled={!isFinishQualificationAvailable}
-            />
+            {isFinishQualificationAvailable && (
+              <Button
+                title="Finish qualification"
+                onPress={finishQualification}
+              />
+            )}
           </View>
         )}
       </View>

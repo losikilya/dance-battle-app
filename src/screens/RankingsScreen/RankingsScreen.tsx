@@ -9,7 +9,7 @@ import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { calculateRanking } from '@domain/qualification/calculateRanking';
-import { getActiveBattleConfigurationId, isInBattleConfiguration } from '@domain/sync/stateSelectors';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { RankingRow } from './RankingRow';
 
 export const RankingsScreen: React.FC = () => {
@@ -20,10 +20,7 @@ export const RankingsScreen: React.FC = () => {
   const roles = useSessionStore(s => s.roles);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
 
-  const activeBattleConfigurationId = state ? getActiveBattleConfigurationId(state.event) : null;
-  const participants = (state?.participants ?? []).filter(
-    (p) => isInBattleConfiguration(activeBattleConfigurationId, p),
-  );
+  const participants = state ? getQualificationParticipants(state) : [];
   const scores = state?.scores ?? [];
   const ranking = calculateRanking({ participants, scores });
   const rankingParticipantIds = ranking.map((item) => item.participantId);

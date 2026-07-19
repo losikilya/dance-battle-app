@@ -7,6 +7,7 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
 import { getResource } from "@resources";
 import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
 import { calculateRanking } from "@domain/qualification/calculateRanking";
+import { getQualificationParticipants } from "@domain/sync/stateSelectors";
 import type { RankedParticipant } from "@domain/qualification/types";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,7 +37,10 @@ export const MCDashboardScreen: React.FC = () => {
     (s) => s.finishQualification,
   );
 
-  const participants = syncedState?.participants ?? [];
+  const allParticipants = syncedState?.participants ?? [];
+  const participants = syncedState
+    ? getQualificationParticipants(syncedState)
+    : [];
   const scores = syncedState?.scores ?? [];
   const ranking = useMemo(
     () => calculateRanking({ participants, scores }),
@@ -182,14 +186,15 @@ export const MCDashboardScreen: React.FC = () => {
               NEXT PARTICIPANT
             </Button>
           )}
-          <Button
-            variant="contained"
-            color="primary"
-            onPress={finishQualification}
-            disabled={!canFinishQualification}
-          >
-            {getResource("host_qualification_finish")}
-          </Button>
+          {canFinishQualification && (
+            <Button
+              variant="contained"
+              color="primary"
+              onPress={finishQualification}
+            >
+              {getResource("host_qualification_finish")}
+            </Button>
+          )}
         </Box>
       )}
 
@@ -219,7 +224,7 @@ export const MCDashboardScreen: React.FC = () => {
       </Box>
 
       {top8.map((item: RankedParticipant) => {
-        const participant = participants.find(
+        const participant = allParticipants.find(
           (p) => p.id === item.participantId,
         );
         return (

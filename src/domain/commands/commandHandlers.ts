@@ -5,7 +5,11 @@ import { calculateRanking } from '../qualification/calculateRanking';
 import { AppEvent } from '../sync/appEvent';
 import { createAppEvent } from '../sync/createAppEvent';
 import { BattleAppState } from '../sync/appState';
-import { getActiveBattleConfigurationId, isInBattleConfiguration } from '../sync/stateSelectors';
+import {
+  getActiveBattleConfigurationId,
+  getQualificationParticipants,
+  isInBattleConfiguration,
+} from '../sync/stateSelectors';
 import { createId } from '../../shared/lib/createId';
 import { AppCommand } from './command';
 import {
@@ -125,8 +129,7 @@ function getActiveBattleJudges(state: BattleAppState): Judge[] {
 }
 
 function getActiveBattleParticipants(state: BattleAppState): Participant[] {
-  const configId = getActiveBattleConfigurationId(state.event);
-  return state.participants.filter((p) => isInBattleConfiguration(configId, p));
+  return getQualificationParticipants(state);
 }
 
 function getActiveBattleScores(state: BattleAppState): QualificationScore[] {
@@ -231,7 +234,10 @@ function handleStartQualificationCommand(
   const firstParticipant = participants[0];
 
   if (!firstParticipant) {
-    return commandFailure('not_found', 'First participant was not found');
+    return commandFailure(
+      'not_enough_data',
+      'At least one present participant is required to start qualification',
+    );
   }
 
   const events: AppEvent[] = [];
@@ -341,6 +347,21 @@ function handleAdvanceQualificationParticipantCommand(
     return commandFailure(
       'action_not_allowed',
       'Timer is no longer active for this participant',
+    );
+  }
+
+  const judges = getActiveBattleJudges(state);
+  const currentParticipantScores = getActiveBattleScores(state).filter(
+    (score) => score.participantId === currentParticipant.id,
+  );
+  const scoredJudgeIds = new Set(
+    currentParticipantScores.map((score) => score.judgeId),
+  );
+
+  if (scoredJudgeIds.size < judges.length) {
+    return commandFailure(
+      'action_not_allowed',
+      'All judges should score the current participant before moving next',
     );
   }
 

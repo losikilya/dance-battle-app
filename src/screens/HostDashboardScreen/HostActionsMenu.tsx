@@ -17,6 +17,7 @@ import { getResource } from '@resources';
 export type HostMenuAction = {
   id: string;
   label: string;
+  description?: string;
   icon: string;
   onPress: () => void;
   disabled?: boolean;
@@ -101,16 +102,23 @@ export const HostActionsMenu: React.FC<HostActionsMenuProps> = ({ actions }) => 
                           : Colors.primary.main
                       }
                     />
-                    <Text
-                      variant="bodyBold"
-                      color={
-                        action.disabled === true
-                          ? 'textSecondary'
-                          : 'textPrimary'
-                      }
-                    >
-                      {action.label}
-                    </Text>
+                    <Box style={styles.actionText} gap={4}>
+                      <Text
+                        variant="bodyBold"
+                        color={
+                          action.disabled === true
+                            ? 'textSecondary'
+                            : 'textPrimary'
+                        }
+                      >
+                        {action.label}
+                      </Text>
+                      {action.description ? (
+                        <Text variant="body2" color="textSecondary">
+                          {action.description}
+                        </Text>
+                      ) : null}
+                    </Box>
                   </TouchableOpacity>
                 ))}
               </Box>
@@ -175,5 +183,8 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.4,
+  },
+  actionText: {
+    flex: 1,
   },
 });

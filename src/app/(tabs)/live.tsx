@@ -14,9 +14,9 @@ export default function LiveTab(): React.JSX.Element {
   const assignedClientRole = useJudgingClientStore(s => s.role);
   const status = useJudgingClientStore(s => s.status);
   const serverAddress = useJudgingClientStore(s => s.serverAddress);
-  const effectiveRole = roles.includes('host')
+  const effectiveRole = assignedClientRole ?? (roles.includes('host')
     ? 'host'
-    : assignedClientRole ?? roles.find((item) => item !== 'spectator') ?? 'spectator';
+    : roles.find((item) => item !== 'spectator') ?? 'spectator');
 
   if (effectiveRole === 'judge') {
     return <Redirect href="/(tabs)/judging" />;

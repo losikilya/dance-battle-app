@@ -8,6 +8,7 @@ import type { Battle } from '@domain/battle/types';
 import type { Participant } from '@domain/participant/types';
 import { applyEvent } from '@domain/sync/applyEvent';
 import type { BattleAppState } from '@domain/sync/appState';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import type {
   ClientMessage,
   ClientRole,
@@ -138,9 +139,10 @@ function getPendingQualificationParticipant(
   judgeId: string,
 ): Participant | null {
   const currentIndex = state.currentQualificationParticipantIndex;
+  const participants = getQualificationParticipants(state);
 
   for (let index = 0; index <= currentIndex; index += 1) {
-    const participant = state.participants[index];
+    const participant = participants[index];
 
     if (
       participant &&
@@ -153,7 +155,7 @@ function getPendingQualificationParticipant(
     }
   }
 
-  return state.participants[currentIndex] ?? null;
+  return participants[currentIndex] ?? null;
 }
 
 export const useJudgingClientStore = create<
@@ -520,7 +522,7 @@ export const useJudgingClientStore = create<
       }
 
       return (
-        syncedState.participants[
+        getQualificationParticipants(syncedState)[
           syncedState.currentQualificationParticipantIndex
         ] ?? null
       );

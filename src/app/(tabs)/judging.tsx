@@ -13,9 +13,9 @@ export default function JudgingTab(): React.JSX.Element {
   const status = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const eventStatus = syncedState?.event.status ?? 'draft';
-  const effectiveRole = roles.includes('host')
+  const effectiveRole = assignedClientRole ?? (roles.includes('host')
     ? 'host'
-    : assignedClientRole ?? roles.find((item) => item !== 'spectator') ?? 'spectator';
+    : roles.find((item) => item !== 'spectator') ?? 'spectator');
 
   if (effectiveRole === 'mc' || effectiveRole === 'spectator') {
     return <Redirect href="/(tabs)/live" />;

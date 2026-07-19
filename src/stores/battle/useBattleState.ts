@@ -10,7 +10,7 @@ export type BattleStateResult = {
 };
 
 export function useBattleState(): BattleStateResult {
-  const isHost = useSessionStore((s) => s.roles.includes('host'));
+  const hasHostRole = useSessionStore((s) => s.roles.includes('host'));
 
   const event = useDemoBattleStore((s) => s.event);
   const participants = useDemoBattleStore((s) => s.participants);
@@ -24,7 +24,10 @@ export function useBattleState(): BattleStateResult {
   const qualificationTimer = useDemoBattleStore((s) => s.qualificationTimer);
   const activeBattleId = useDemoBattleStore((s) => s.activeBattleId);
   const systemLogs = useDemoBattleStore((s) => s.systemLogs);
+  const clientStatus = useJudgingClientStore((s) => s.status);
   const syncedState = useJudgingClientStore((s) => s.syncedState);
+  const isRemoteClientConnected = clientStatus === 'connected' && syncedState !== null;
+  const isHost = hasHostRole && !isRemoteClientConnected;
 
   const activeBattleConfigurationId = getActiveBattleConfigurationId(event);
   const activeParticipants = participants.filter(

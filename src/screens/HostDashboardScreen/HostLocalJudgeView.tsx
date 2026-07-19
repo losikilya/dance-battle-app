@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Button, Text } from '@components';
 import Colors from '@constants/Colors';
@@ -8,6 +8,7 @@ import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { ScoreNumpad } from '@screens/JudgeQualificationScreen/ScoreNumpad';
 import { DancerVoteCard } from '@screens/JudgeBattleVotingScreen/DancerVoteCard';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
 
 function getInitialLocalQualificationParticipantIndex(params: {
@@ -74,9 +75,17 @@ export const HostLocalJudgeView: React.FC = () => {
     state => state.submitBattleVote,
   );
 
+  const qualificationParticipants = useMemo(
+    () =>
+      getQualificationParticipants({
+        event,
+        participants,
+      }),
+    [event, participants],
+  );
   const currentParticipant =
     localQualificationParticipantIndex !== null
-      ? participants[localQualificationParticipantIndex] ?? null
+      ? qualificationParticipants[localQualificationParticipantIndex] ?? null
       : null;
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
@@ -106,8 +115,8 @@ export const HostLocalJudgeView: React.FC = () => {
     localQualificationParticipantIndex > 0;
   const canGoToNextLocalParticipant =
     localQualificationParticipantIndex !== null &&
-    localQualificationParticipantIndex < participants.length - 1;
-  const participantRows = participants.map((participant, index) => {
+    localQualificationParticipantIndex < qualificationParticipants.length - 1;
+  const participantRows = qualificationParticipants.map((participant, index) => {
     const judgeScore =
       scores.find(
         score =>
@@ -129,7 +138,7 @@ export const HostLocalJudgeView: React.FC = () => {
     setLocalQualificationParticipantIndex(previousIndex => {
       const initialIndex = getInitialLocalQualificationParticipantIndex({
         currentIndex,
-        participants,
+        participants: qualificationParticipants,
         scores,
         judgeId: selfJudgeId,
       });
@@ -137,14 +146,14 @@ export const HostLocalJudgeView: React.FC = () => {
       if (
         previousIndex === null ||
         initialIndex === null ||
-        previousIndex >= participants.length
+        previousIndex >= qualificationParticipants.length
       ) {
         return initialIndex;
       }
 
       return previousIndex;
     });
-  }, [currentIndex, participants, scores, selfJudgeId]);
+  }, [currentIndex, qualificationParticipants, scores, selfJudgeId]);
 
   useEffect(() => {
     setSelectedScore(null);

@@ -5,6 +5,7 @@ import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
+import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
@@ -15,7 +16,10 @@ export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
   const { state, isHost } = useBattleState();
-  const role = useSessionStore(s => s.roles.includes('host') ? 'host' : 'spectator');
+  const assignedClientRole = useJudgingClientStore(s => s.role);
+  const role = useSessionStore(s =>
+    assignedClientRole ?? (s.roles.includes('host') ? 'host' : 'spectator'),
+  );
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
 

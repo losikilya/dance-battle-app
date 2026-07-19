@@ -8,6 +8,7 @@ import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientSto
 import { ScoreNumpad } from './ScoreNumpad';
 import { CriteriaBar } from './CriteriaBar';
 import type { BattleAppState } from '@domain/sync/appState';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 
 const CRITERIA = [
   { key: 'technique', label: () => getResource('judge_criteria_technique'), value: 0.75 },
@@ -40,12 +41,18 @@ function getPendingParticipantIndexForJudge(
     return null;
   }
 
+  const participants = getQualificationParticipants(syncedState);
+
+  if (participants.length === 0) {
+    return null;
+  }
+
   for (
     let index = 0;
     index <= syncedState.currentQualificationParticipantIndex;
     index += 1
   ) {
-    const participant = syncedState.participants[index];
+    const participant = participants[index];
 
     if (
       participant &&
@@ -60,7 +67,7 @@ function getPendingParticipantIndexForJudge(
 
   return Math.min(
     syncedState.currentQualificationParticipantIndex,
-    syncedState.participants.length - 1,
+    participants.length - 1,
   );
 }
 
@@ -79,7 +86,9 @@ export const JudgeQualificationScreen: React.FC = () => {
   const sendScore = useJudgingClientStore(s => s.sendScore);
   const judgeId = useJudgingClientStore(s => s.assignedJudgeId);
 
-  const participants = syncedState?.participants ?? [];
+  const participants = syncedState
+    ? getQualificationParticipants(syncedState)
+    : [];
   const scores = syncedState?.scores ?? [];
   const currentIndex = syncedState?.currentQualificationParticipantIndex ?? 0;
   const hostCurrentParticipant = participants[currentIndex] ?? null;

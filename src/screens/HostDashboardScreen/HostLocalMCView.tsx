@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 
 export const HostLocalMCView: React.FC = () => {
@@ -38,8 +40,16 @@ export const HostLocalMCView: React.FC = () => {
   const getRanking = useDemoBattleStore(state => state.getRanking);
   const getChampionId = useDemoBattleStore(state => state.getChampionId);
 
-  const currentParticipant = participants[currentIndex] ?? null;
-  const nextParticipant = participants[currentIndex + 1] ?? null;
+  const qualificationParticipants = useMemo(
+    () =>
+      getQualificationParticipants({
+        event,
+        participants,
+      }),
+    [event, participants],
+  );
+  const currentParticipant = qualificationParticipants[currentIndex] ?? null;
+  const nextParticipant = qualificationParticipants[currentIndex + 1] ?? null;
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
   const ranking = scores.length > 0 ? getRanking().slice(0, 8) : [];
@@ -47,6 +57,7 @@ export const HostLocalMCView: React.FC = () => {
   const champion = participants.find(item => item.id === championId);
   const isManualMode =
     event.battleConfiguration?.qualificationAdvanceMode === 'manual';
+  const isFinishQualificationAvailable = canFinishQualification();
 
   return (
     <ScrollView
@@ -143,7 +154,7 @@ export const HostLocalMCView: React.FC = () => {
             <Button
               variant="outlined"
               color="secondary"
-              disabled={currentIndex >= participants.length - 1}
+              disabled={currentIndex >= qualificationParticipants.length - 1}
               onPress={() => {
                 void advanceQualificationParticipant();
               }}
@@ -151,16 +162,17 @@ export const HostLocalMCView: React.FC = () => {
               NEXT PARTICIPANT
             </Button>
           )}
-          <Button
-            variant="contained"
-            color="primary"
-            disabled={!canFinishQualification()}
-            onPress={() => {
-              void finishQualification();
-            }}
-          >
-            {getResource('host_qualification_finish')}
-          </Button>
+          {isFinishQualificationAvailable && (
+            <Button
+              variant="contained"
+              color="primary"
+              onPress={() => {
+                void finishQualification();
+              }}
+            >
+              {getResource('host_qualification_finish')}
+            </Button>
+          )}
         </Box>
       )}
 

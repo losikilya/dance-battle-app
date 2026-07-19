@@ -5,10 +5,12 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
 import { BattleRound } from '@domain/battle/types';
 import { BattleCard } from './BattleCard';
 import { PowerRankingsWidget } from './PowerRankingsWidget';
 import { BattleFeedWidget } from './BattleFeedWidget';
+import { HostBattleVoteWidget } from './HostBattleVoteWidget';
 
 const ROUND_ORDER: BattleRound[] = [
   'final',
@@ -30,6 +32,7 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 
 export const BracketScreen: React.FC = () => {
   const { state, isHost } = useBattleState();
+  const hasJudgeRole = useSessionStore(s => s.roles.includes('judge'));
   const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
   const generateNextRound = useDemoBattleStore(s => s.generateNextRound);
 
@@ -43,6 +46,8 @@ export const BracketScreen: React.FC = () => {
   const activeBattle = battles.find(
     b => b.status === 'active' || b.status === 'voting',
   );
+  const canShowHostVoteWidget =
+    isHost && hasJudgeRole && activeBattle?.status === 'voting';
   const activeRound = ROUND_LABELS[activeBattle?.round ?? battles[0]?.round ?? 'top8'];
 
   return (
@@ -62,6 +67,14 @@ export const BracketScreen: React.FC = () => {
           </Text>
         </Box>
       </Box>
+
+      {canShowHostVoteWidget && activeBattle && (
+        <HostBattleVoteWidget
+          battle={activeBattle}
+          participants={participants}
+          categoryTitle={state?.event.battleConfiguration?.categoryTitle ?? '—'}
+        />
+      )}
 
       {ROUND_ORDER.map(round => {
         const roundBattles = battles.filter(b => b.round === round);

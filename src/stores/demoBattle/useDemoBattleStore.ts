@@ -17,7 +17,11 @@ import { createDemoParticipants } from "@domain/demo/createDemoEvent";
 import type { BattleFormat } from "@domain/event/types";
 import { createCommand } from "@domain/commands/createCommand";
 import { handleCommand } from "@domain/commands/commandHandlers";
-import { getActiveBattleConfigurationId, isInBattleConfiguration } from "@domain/sync/stateSelectors";
+import {
+  getActiveBattleConfigurationId,
+  getQualificationParticipants,
+  isInBattleConfiguration,
+} from "@domain/sync/stateSelectors";
 import {
   CommandError,
   CommandHandlerResult,
@@ -210,9 +214,13 @@ function getAssignedBattleJudges(state: BattleAppState) {
   return state.judges.filter((judge) => assignedJudgeIds.includes(judge.id));
 }
 
-function getActiveBattleParticipants(state: BattleAppState): Participant[] {
+function getActiveBattleRosterParticipants(state: BattleAppState): Participant[] {
   const configId = getActiveBattleConfigurationId(state.event);
   return state.participants.filter((p) => isInBattleConfiguration(configId, p));
+}
+
+function getActiveBattleParticipants(state: BattleAppState): Participant[] {
+  return getQualificationParticipants(state);
 }
 
 function getActiveBattleScores(state: BattleAppState): QualificationScore[] {
@@ -692,7 +700,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     canGoToNextQualificationParticipant: () => {
-      return get().canManuallyAdvanceQualificationParticipant();
+      return (
+        get().canManuallyAdvanceQualificationParticipant() &&
+        get().isCurrentParticipantScoredByAllJudges()
+      );
     },
 
     canManuallyAdvanceQualificationParticipant: () => {
@@ -945,13 +956,13 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     importParticipants: async (participants) => {
-      const previousCount = getActiveBattleParticipants(get()).length;
+      const previousCount = getActiveBattleRosterParticipants(get()).length;
 
       await executeCommand(
         createCommand("participant.import", { participants }),
       );
 
-      return getActiveBattleParticipants(get()).length > previousCount;
+      return getActiveBattleRosterParticipants(get()).length > previousCount;
     },
 
     removeParticipant: async (participantId) => {
@@ -1116,7 +1127,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
       if (
         activeBattleConfigurationId &&
-        getActiveBattleParticipants(initialState).length === 0
+        getActiveBattleRosterParticipants(initialState).length === 0
       ) {
         for (let index = 0; index < 10; index += 1) {
           await executeCommand(
@@ -1129,6 +1140,21 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       }
 
       const stateAfterParticipants = get();
+      const rosterParticipants = stateAfterParticipants.participants.filter(
+        (participant) =>
+          isInBattleConfiguration(activeBattleConfigurationId, participant),
+      );
+
+      for (const participant of rosterParticipants) {
+        if (participant.checkIn !== "present") {
+          await executeCommand(
+            createCommand("participant.toggleCheckIn", {
+              participantId: participant.id,
+            }),
+          );
+        }
+      }
+
       const assignedJudges = getAssignedBattleJudges(stateAfterParticipants);
 
       if (

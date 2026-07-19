@@ -14,9 +14,9 @@ const IOS = "ios";
 export default function TabLayout(): React.JSX.Element {
   const roles = useSessionStore((s) => s.roles);
   const assignedClientRole = useJudgingClientStore((s) => s.role);
-  const effectiveRole = roles.includes("host")
+  const effectiveRole = assignedClientRole ?? (roles.includes("host")
     ? "host"
-    : assignedClientRole ?? roles.find((item) => item !== "spectator") ?? "spectator";
+    : roles.find((item) => item !== "spectator") ?? "spectator");
   const isHost = effectiveRole === "host";
 
   if (roles.length === 0) {
