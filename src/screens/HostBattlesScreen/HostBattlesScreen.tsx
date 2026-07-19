@@ -1,6 +1,13 @@
-import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRef, useState } from 'react';
 
 import { Box, Button, Text } from '@components';
 import Colors from '@constants/Colors';
@@ -24,10 +31,16 @@ const statusLabels: Record<EventStatus, string> = {
 
 export function HostBattlesScreen(): React.JSX.Element {
   const router = useRouter();
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  const swipePressBlockUntilMs = useRef(0);
+  const [openSwipeableId, setOpenSwipeableId] = useState<string | null>(null);
   const judges = useDemoBattleStore((state) => state.judges);
   const battles = useDemoBattleStore((state) => state.battles);
   const configurations = useDemoBattleStore(
     (state) => state.event.battleConfigurations,
+  );
+  const deleteBattleConfiguration = useDemoBattleStore(
+    (state) => state.deleteBattleConfiguration,
   );
 
   const openBattleDashboard = (battleConfigurationId: string): void => {
@@ -36,6 +49,64 @@ export function HostBattlesScreen(): React.JSX.Element {
       params: { battleConfigurationId },
     });
   };
+
+  const closeOpenSwipeable = (): void => {
+    if (!openSwipeableId) {
+      return;
+    }
+
+    swipeableRefs.current[openSwipeableId]?.close();
+  };
+
+  const handleBattleCardPress = (battleConfigurationId: string): void => {
+    if (
+      openSwipeableId !== null ||
+      swipePressBlockUntilMs.current > Date.now()
+    ) {
+      closeOpenSwipeable();
+      return;
+    }
+
+    openBattleDashboard(battleConfigurationId);
+  };
+
+  const confirmDeleteBattle = (configuration: BattleConfiguration): void => {
+    swipeableRefs.current[configuration.id]?.close();
+
+    Alert.alert(
+      getResource('host_battles_delete_title'),
+      `${configuration.categoryTitle}\n\n${getResource('host_battles_delete_message')}`,
+      [
+        {
+          text: getResource('host_battles_delete_cancel'),
+          style: 'cancel',
+        },
+        {
+          text: getResource('host_battles_delete_confirm'),
+          style: 'destructive',
+          onPress: () => {
+            void deleteBattleConfiguration(configuration.id);
+          },
+        },
+      ],
+    );
+  };
+
+  const renderDeleteAction = (configuration: BattleConfiguration): React.ReactNode => (
+    <TouchableOpacity
+      style={styles.swipeDeleteAction}
+      onPress={() => confirmDeleteBattle(configuration)}
+      accessibilityRole="button"
+      accessibilityLabel={getResource('host_battles_delete')}
+    >
+      <Ionicons
+        name="trash-outline"
+        size={24}
+        color={Colors.text.primary}
+      />
+      <Text variant="body2">{getResource('host_battles_delete')}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <ScrollView
@@ -79,34 +150,64 @@ export function HostBattlesScreen(): React.JSX.Element {
               );
 
             return (
-              <TouchableOpacity
+              <Swipeable
                 key={configuration.id}
-                style={styles.battleCard}
-                onPress={() => openBattleDashboard(configuration.id)}
-                accessibilityRole="button"
+                ref={(ref) => {
+                  swipeableRefs.current[configuration.id] = ref;
+                }}
+                renderRightActions={() => renderDeleteAction(configuration)}
+                overshootRight={false}
+                rightThreshold={48}
+                onSwipeableOpenStartDrag={() => {
+                  swipePressBlockUntilMs.current = Date.now() + 600;
+                }}
+                onSwipeableWillOpen={() => {
+                  swipePressBlockUntilMs.current = Date.now() + 600;
+
+                  if (
+                    openSwipeableId !== null &&
+                    openSwipeableId !== configuration.id
+                  ) {
+                    swipeableRefs.current[openSwipeableId]?.close();
+                  }
+
+                  setOpenSwipeableId(configuration.id);
+                }}
+                onSwipeableClose={() => {
+                  swipePressBlockUntilMs.current = Date.now() + 200;
+                  setOpenSwipeableId((currentId) =>
+                    currentId === configuration.id ? null : currentId,
+                  );
+                }}
               >
-                <Box direction="row" align="center" justify="space-between" gap={12}>
-                  <Box style={styles.battleInfo} direction="row" align="center" gap={10}>
-                    <Box
-                      style={{
-                        ...styles.statusDot,
-                        ...(isLive ? styles.statusDotLive : {}),
-                      }}
-                    />
-                    <Box style={styles.battleText} gap={4}>
-                      <Text variant="bodyBold">{configuration.categoryTitle}</Text>
-                      <Text variant="body2" color="textSecondary">
-                        {statusLabels[configuration.status]} · {formatBattleStatus(configuration)} · {assignedJudges.length} {getResource('host_battles_judges_suffix')}
-                      </Text>
+                <TouchableOpacity
+                  style={styles.battleCard}
+                  onPress={() => handleBattleCardPress(configuration.id)}
+                  accessibilityRole="button"
+                >
+                  <Box direction="row" align="center" justify="space-between" gap={12}>
+                    <Box style={styles.battleInfo} direction="row" align="center" gap={10}>
+                      <Box
+                        style={{
+                          ...styles.statusDot,
+                          ...(isLive ? styles.statusDotLive : {}),
+                        }}
+                      />
+                      <Box style={styles.battleText} gap={4}>
+                        <Text variant="bodyBold">{configuration.categoryTitle}</Text>
+                        <Text variant="body2" color="textSecondary">
+                          {statusLabels[configuration.status]} · {formatBattleStatus(configuration)} · {assignedJudges.length} {getResource('host_battles_judges_suffix')}
+                        </Text>
+                      </Box>
                     </Box>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={22}
+                      color={Colors.text.primary}
+                    />
                   </Box>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={22}
-                    color={Colors.text.primary}
-                  />
-                </Box>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </Swipeable>
             );
           })
         )}
@@ -149,6 +250,15 @@ const styles = StyleSheet.create({
   },
   battleText: {
     flex: 1,
+  },
+  swipeDeleteAction: {
+    width: 96,
+    minHeight: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.error.main,
   },
   statusDot: {
     width: 10,

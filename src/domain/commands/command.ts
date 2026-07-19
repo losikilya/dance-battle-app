@@ -126,6 +126,13 @@ export type SelectBattleConfigurationCommand = CommandMeta & {
   };
 };
 
+export type DeleteBattleConfigurationCommand = CommandMeta & {
+  type: 'battle.deleteConfiguration';
+  payload: {
+    battleConfigurationId: string;
+  };
+};
+
 export type AssignBattleJudgeCommand = CommandMeta & {
   type: 'battle.assignJudge';
   payload: {
@@ -205,6 +212,7 @@ export type AppCommand =
   | FinishEventCommand
   | ConfigureBattleCommand
   | SelectBattleConfigurationCommand
+  | DeleteBattleConfigurationCommand
   | AssignBattleJudgeCommand
   | UnassignBattleJudgeCommand
   | RenameBattleJudgeCommand

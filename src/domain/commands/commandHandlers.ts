@@ -84,6 +84,9 @@ export function handleCommand(
     case 'battle.selectConfiguration':
       return handleSelectBattleConfigurationCommand(state, command);
 
+    case 'battle.deleteConfiguration':
+      return handleDeleteBattleConfigurationCommand(state, command);
+
     case 'battle.assignJudge':
       return handleAssignBattleJudgeCommand(state, command);
 
@@ -901,13 +904,16 @@ function handleAssignBattleJudgeCommand(
   }
 
   const existingJudge = state.judges.find(
-    (judge) =>
-      judge.deviceId === command.payload.deviceId &&
-      judge.battleConfigurationId === battleConfigurationId,
+    (judge) => judge.deviceId === command.payload.deviceId,
   );
 
   const judge: Judge = existingJudge
-    ? { ...existingJudge, name }
+    ? {
+        ...existingJudge,
+        name,
+        battleConfigurationId:
+          existingJudge.battleConfigurationId ?? battleConfigurationId,
+      }
     : {
         id: createId('judge'),
         name,
@@ -948,7 +954,6 @@ function handleUnassignBattleJudgeCommand(
   const judge = state.judges.find(
     (item) =>
       item.deviceId === command.payload.deviceId &&
-      item.battleConfigurationId === battleConfigurationId &&
       configuration.assignedJudgeIds.includes(item.id),
   );
 
@@ -1005,6 +1010,25 @@ function handleSelectBattleConfigurationCommand(
 
   return commandSuccess([
     createAppEvent('battle.configurationSelected', {
+      battleConfigurationId: configuration.id,
+    }),
+  ]);
+}
+
+function handleDeleteBattleConfigurationCommand(
+  state: BattleAppState,
+  command: Extract<AppCommand, { type: 'battle.deleteConfiguration' }>,
+): CommandHandlerResult {
+  const configuration = state.event.battleConfigurations.find(
+    (item) => item.id === command.payload.battleConfigurationId,
+  );
+
+  if (!configuration) {
+    return commandFailure('not_found', 'Battle configuration was not found');
+  }
+
+  return commandSuccess([
+    createAppEvent('battle.configurationDeleted', {
       battleConfigurationId: configuration.id,
     }),
   ]);

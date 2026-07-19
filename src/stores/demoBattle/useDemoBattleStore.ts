@@ -141,6 +141,7 @@ type DemoBattleActions = {
   finishEvent: () => Promise<void>;
   configureBattle: (params: ConfigureBattleParams) => Promise<string | null>;
   selectBattleConfiguration: (battleConfigurationId: string) => Promise<void>;
+  deleteBattleConfiguration: (battleConfigurationId: string) => Promise<void>;
   assignBattleJudge: (params: AssignBattleJudgeParams) => Promise<string | null>;
   unassignBattleJudge: (params: UnassignBattleJudgeParams) => Promise<void>;
   renameBattleJudge: (params: RenameBattleJudgeParams) => Promise<void>;
@@ -899,16 +900,27 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
+    deleteBattleConfiguration: async (battleConfigurationId) => {
+      await executeCommand(
+        createCommand("battle.deleteConfiguration", {
+          battleConfigurationId,
+        }),
+      );
+    },
+
     assignBattleJudge: async (params) => {
       await executeCommand(createCommand("battle.assignJudge", params));
 
       const configurationId =
         params.battleConfigurationId ?? get().event.battleConfiguration?.id;
+      const configuration = get().event.battleConfigurations.find(
+        (item) => item.id === configurationId,
+      ) ?? get().event.battleConfiguration;
 
       return get().judges.find(
         (judge) =>
           judge.deviceId === params.deviceId &&
-          judge.battleConfigurationId === configurationId,
+          configuration?.assignedJudgeIds.includes(judge.id),
       )?.id ?? null;
     },
 

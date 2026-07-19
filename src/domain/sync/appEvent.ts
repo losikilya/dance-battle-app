@@ -171,6 +171,13 @@ export type BattleConfigurationSelectedEvent = AppEventMeta & {
   };
 };
 
+export type BattleConfigurationDeletedEvent = AppEventMeta & {
+  type: 'battle.configurationDeleted';
+  payload: {
+    battleConfigurationId: string;
+  };
+};
+
 export type ParticipantAddedEvent = AppEventMeta & {
   type: 'participant.added';
   payload: {
@@ -212,6 +219,7 @@ export type AppEvent =
   | BattleJudgeUnassignedEvent
   | BattleJudgeRenamedEvent
   | BattleConfigurationSelectedEvent
+  | BattleConfigurationDeletedEvent
   | ParticipantAddedEvent
   | ParticipantRemovedEvent
   | ParticipantCheckInToggledEvent;

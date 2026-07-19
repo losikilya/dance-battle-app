@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, BackHandler, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -15,12 +15,36 @@ export default function ScanQrScreen(): React.JSX.Element {
   const setPendingAddress = useJudgingClientStore(s => s.setPendingAddress);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
   const resetConnectionTarget = useJudgingClientStore(s => s.resetConnectionTarget);
+  const connectionStatus = useJudgingClientStore(s => s.status);
+  const syncedState = useJudgingClientStore(s => s.syncedState);
+  const lastConnectionError = useJudgingClientStore(s => s.lastError);
   const setRole = useSessionStore(s => s.setRole);
   const judgeName = useSessionStore(s => s.judgeName);
   const requestedJudgeId = useSessionStore(s => s.judgeId);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  const handleBack = () => {
+    router.replace('/(auth)/discovery');
+  };
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (connectionStatus === 'connected' && syncedState !== null) {
+      router.replace('/(tabs)');
+    }
+  }, [connectionStatus, router, syncedState]);
 
   const handleEnterManually = () => {
     setRole('spectator');
@@ -42,6 +66,7 @@ export default function ScanQrScreen(): React.JSX.Element {
       return;
     }
 
+    setScanned(true);
     setRole('spectator');
     resetConnectionTarget();
     setPendingAddress(null);
@@ -52,8 +77,13 @@ export default function ScanQrScreen(): React.JSX.Element {
       name: judgeName ?? undefined,
       requestedJudgeId: requestedJudgeId ?? undefined,
     });
-    router.replace('/(tabs)');
   };
+
+  const isConnecting =
+    connectionStatus === 'connecting' || connectionStatus === 'reconnecting';
+  const scanLabel = isConnecting
+    ? getResource('scan_qr_connecting')
+    : scanError ?? lastConnectionError ?? getResource('scan_qr_label');
 
   if (!permission) {
     return <Box fullHeight color={Colors.dark.background} />;
@@ -90,12 +120,12 @@ export default function ScanQrScreen(): React.JSX.Element {
       <CameraView
         style={styles.camera}
         facing="back"
-        onBarcodeScanned={handleBarcodeScan}
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScan}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       />
 
       <View style={styles.overlay} pointerEvents="box-none">
-        <TouchableOpacity style={styles.backButton} onPress={() => { router.back(); }}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={Colors.text.primary} />
         </TouchableOpacity>
 
@@ -103,9 +133,14 @@ export default function ScanQrScreen(): React.JSX.Element {
           <Box style={styles.frame} />
           <Box mt={16}>
             <Text variant="body2" style={styles.scanLabel}>
-              {scanError ?? getResource('scan_qr_label')}
+              {scanLabel}
             </Text>
           </Box>
+          {isConnecting && (
+            <Box mt={12}>
+              <ActivityIndicator color={Colors.primary.main} />
+            </Box>
+          )}
         </Box>
 
         <Box style={styles.bottomBar} align="center" pb={48}>

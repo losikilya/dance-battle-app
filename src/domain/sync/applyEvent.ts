@@ -367,6 +367,88 @@ export function applyEvent(
       };
     }
 
+    case "battle.configurationDeleted": {
+      const deletedConfigurationId = event.payload.battleConfigurationId;
+      const currentConfigurations = state.event.battleConfigurations ?? [];
+      const deletedConfiguration = currentConfigurations.find(
+        (configuration) => configuration.id === deletedConfigurationId,
+      );
+
+      if (!deletedConfiguration) {
+        return state;
+      }
+
+      const nextConfigurations = currentConfigurations.filter(
+        (configuration) => configuration.id !== deletedConfigurationId,
+      );
+      const deletedParticipantIds = new Set(
+        state.participants
+          .filter(
+            (participant) =>
+              participant.battleConfigurationId === deletedConfigurationId,
+          )
+          .map((participant) => participant.id),
+      );
+      const deletedBattleIds = new Set(
+        state.battles
+          .filter((battle) => battle.battleConfigurationId === deletedConfigurationId)
+          .map((battle) => battle.id),
+      );
+      const deletedActiveConfiguration =
+        getActiveBattleConfigurationId(state.event) === deletedConfigurationId;
+      const nextActiveConfiguration = deletedActiveConfiguration
+        ? nextConfigurations[0] ?? null
+        : state.event.battleConfiguration;
+      const nextActiveBattle = nextActiveConfiguration
+        ? state.battles.find(
+            (battle) =>
+              battle.battleConfigurationId === nextActiveConfiguration.id &&
+              (battle.status === 'active' || battle.status === 'voting'),
+          ) ?? null
+        : null;
+
+      return {
+        ...state,
+        event: {
+          ...state.event,
+          battleConfiguration: nextActiveConfiguration,
+          battleConfigurations: nextConfigurations,
+          activeBattleConfigurationId: nextActiveConfiguration?.id ?? null,
+          status: nextActiveConfiguration?.status ?? 'draft',
+        },
+        participants: state.participants.filter(
+          (participant) => participant.battleConfigurationId !== deletedConfigurationId,
+        ),
+        judges: state.judges.filter(
+          (judge) => judge.battleConfigurationId !== deletedConfigurationId,
+        ),
+        scores: state.scores.filter(
+          (score) => !deletedParticipantIds.has(score.participantId),
+        ),
+        battles: state.battles.filter(
+          (battle) => battle.battleConfigurationId !== deletedConfigurationId,
+        ),
+        votes: state.votes.filter((vote) => !deletedBattleIds.has(vote.battleId)),
+        activeBattleId: deletedActiveConfiguration
+          ? nextActiveBattle?.id ?? null
+          : state.activeBattleId !== null && deletedBattleIds.has(state.activeBattleId)
+            ? null
+            : state.activeBattleId,
+        currentQualificationParticipantIndex: deletedActiveConfiguration
+          ? 0
+          : state.currentQualificationParticipantIndex,
+        qualificationTimer: deletedActiveConfiguration
+          ? createIdleQualificationTimer(
+              nextActiveConfiguration?.qualificationDurationSeconds ?? 60,
+            )
+          : state.qualificationTimer,
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry(`Battle "${deletedConfiguration.categoryTitle}" deleted.`),
+        ],
+      };
+    }
+
     case "qualification.started": {
       const activeBattleConfigurationId = getActiveBattleConfigurationId(state.event);
       const activeParticipants = state.participants.filter((participant) =>

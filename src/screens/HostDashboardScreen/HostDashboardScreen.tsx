@@ -80,7 +80,6 @@ export const HostDashboardScreen: React.FC = () => {
     judges.find(
       (judge) =>
         judge.deviceId === deviceId &&
-        judge.battleConfigurationId === battleConfigurationId &&
         isJudgeAssignedToBattle(judge.id, battleConfigurationId),
     );
   const assignJudgeToBattle = async (
@@ -122,16 +121,24 @@ export const HostDashboardScreen: React.FC = () => {
     const assignedJudges = judges.filter(
       (judge) =>
         judge.deviceId === deviceId &&
-        judge.battleConfigurationId !== undefined &&
-        isJudgeAssignedToBattle(judge.id, judge.battleConfigurationId),
+        battleConfigurations.some((configuration) =>
+          isJudgeAssignedToBattle(judge.id, configuration.id),
+        ),
     );
 
     for (const judge of assignedJudges) {
-      await assignBattleJudge({
-        battleConfigurationId: judge.battleConfigurationId,
-        deviceId,
-        name: nextName,
-      });
+      const assignedConfigurations = battleConfigurations.filter(
+        (configuration) =>
+          isJudgeAssignedToBattle(judge.id, configuration.id),
+      );
+
+      for (const configuration of assignedConfigurations) {
+        await assignBattleJudge({
+          battleConfigurationId: configuration.id,
+          deviceId,
+          name: nextName,
+        });
+      }
     }
   };
   const rosterListTitle =
@@ -153,9 +160,9 @@ export const HostDashboardScreen: React.FC = () => {
       ? judges.find((judge) => judge.id === client.judgeId)
       : null;
     const judgeActions = battleConfigurations.map((battleConfiguration) => {
-      const isAssignedToBattle =
-        assignedJudge?.battleConfigurationId === battleConfiguration.id &&
-        isJudgeAssignedToBattle(assignedJudge.id, battleConfiguration.id);
+      const isAssignedToBattle = assignedJudge
+        ? isJudgeAssignedToBattle(assignedJudge.id, battleConfiguration.id)
+        : false;
 
       return {
         id: `assign_judge_${battleConfiguration.id}`,
@@ -235,9 +242,7 @@ export const HostDashboardScreen: React.FC = () => {
     )
     .map((judge) => {
       const configuration = battleConfigurations.find(
-        (item) =>
-          item.id === judge.battleConfigurationId &&
-          item.assignedJudgeIds.includes(judge.id),
+        (item) => item.assignedJudgeIds.includes(judge.id),
       );
       const client = connectedClients.find(
         (item) => item.deviceId === judge.deviceId,
