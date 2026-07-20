@@ -1,8 +1,16 @@
-import { ScrollView, StyleSheet } from 'react-native';
+import { useMemo } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Box, Button, QualificationTimerDisplay, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import {
+  formatBattleParticipantNames,
+  getBattleParticipantDisplayRows,
+} from '@screens/shared/battleDisplay';
 
 export const HostLocalMCView: React.FC = () => {
   const event = useDemoBattleStore(state => state.event);
@@ -28,17 +36,53 @@ export const HostLocalMCView: React.FC = () => {
   const advanceQualificationParticipant = useDemoBattleStore(
     state => state.advanceQualificationParticipant,
   );
+  const markCurrentParticipantAbsent = useDemoBattleStore(
+    state => state.markCurrentParticipantAbsent,
+  );
+  const moveCurrentParticipantToEnd = useDemoBattleStore(
+    state => state.moveCurrentParticipantToEnd,
+  );
+  const finishQualification = useDemoBattleStore(
+    state => state.finishQualification,
+  );
+  const canFinishQualification = useDemoBattleStore(
+    state => state.canFinishQualification,
+  );
   const getRanking = useDemoBattleStore(state => state.getRanking);
   const getChampionId = useDemoBattleStore(state => state.getChampionId);
 
-  const currentParticipant = participants[currentIndex] ?? null;
-  const nextParticipant = participants[currentIndex + 1] ?? null;
+  const qualificationParticipants = useMemo(
+    () =>
+      getQualificationParticipants({
+        event,
+        participants,
+      }),
+    [event, participants],
+  );
+  const currentParticipant = qualificationParticipants[currentIndex] ?? null;
+  const nextParticipant = qualificationParticipants[currentIndex + 1] ?? null;
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
+  const activeBattleParticipantRows = activeBattle
+    ? getBattleParticipantDisplayRows({
+        battle: activeBattle,
+        participants,
+        votes: [],
+      })
+    : [];
   const ranking = scores.length > 0 ? getRanking().slice(0, 8) : [];
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
-  const isManualMode = event.qualificationAdvanceMode === 'manual';
+  const isFinishQualificationAvailable = canFinishQualification();
+  const isQualificationActive =
+    event.status === 'qualification' && currentParticipant !== null;
+  const isLastParticipant =
+    currentIndex >= qualificationParticipants.length - 1;
+  const timerToggleIcon =
+    qualificationTimer.status === 'running' ? 'pause' : 'play';
+  const canToggleTimer =
+    qualificationTimer.status === 'running' ||
+    qualificationTimer.status === 'paused';
 
   return (
     <ScrollView
@@ -50,7 +94,7 @@ export const HostLocalMCView: React.FC = () => {
         <Text variant="body2" color="primary">LOCAL MC VIEW</Text>
         <Text variant="h1">{event.title}</Text>
         <Text variant="body2" color="textSecondary">
-          {event.categoryTitle} · {event.status.toUpperCase()}
+          {event.battleConfiguration?.categoryTitle ?? '—'} · {event.status.toUpperCase()}
         </Text>
       </Box>
 
@@ -65,11 +109,7 @@ export const HostLocalMCView: React.FC = () => {
         <Box style={styles.highlightCard} p={20} gap={8} mb={20}>
           <Text variant="body2" color="primary">CURRENT BATTLE</Text>
           <Text variant="h2">
-            {participants.find(item => item.id === activeBattle.participantAId)
-              ?.name ?? 'Unknown'}
-            {' VS '}
-            {participants.find(item => item.id === activeBattle.participantBId)
-              ?.name ?? 'Unknown'}
+            {formatBattleParticipantNames(activeBattleParticipantRows)}
           </Text>
           <Text variant="body2" color="textSecondary">
             {activeBattle.round.toUpperCase()} · {activeBattle.status.toUpperCase()}
@@ -82,7 +122,7 @@ export const HostLocalMCView: React.FC = () => {
           <Text variant="body2" color="primary">NOW DANCING</Text>
           <Text variant="h1">
             #{String(currentParticipant.number).padStart(2, '0')}{' '}
-            {currentParticipant.name}
+            {currentParticipant.name} / {currentParticipant.city} / {currentParticipant.crew}
           </Text>
           {nextParticipant && (
             <Text variant="body2" color="textSecondary">
@@ -97,50 +137,61 @@ export const HostLocalMCView: React.FC = () => {
         <Box style={styles.card} p={20} gap={12} mb={20}>
           <QualificationTimerDisplay
             timer={qualificationTimer}
-            durationSeconds={event.qualificationDurationSeconds}
+            durationSeconds={event.battleConfiguration?.qualificationDurationSeconds ?? 60}
           />
-          <Box direction="row" gap={8}>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={() => {
-                  void (
-                    qualificationTimer.status === 'paused'
-                      ? resumeQualificationTimer()
-                      : pauseQualificationTimer()
-                  );
-                }}
-                disabled={
-                  qualificationTimer.status !== 'running' &&
-                  qualificationTimer.status !== 'paused'
-                }
-              >
-                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
-              </Button>
-            </Box>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={() => {
-                  void restartQualificationTimer();
-                }}
-              >
-                RESTART
-              </Button>
-            </Box>
+          <Box direction="row" justify="space-between" align="center" gap={12}>
+            <MCIconButton
+              icon="bed"
+              accessibilityLabel={getResource("mc_action_late")}
+              disabled={!isQualificationActive || isLastParticipant}
+              onPress={moveCurrentParticipantToEnd}
+              variant="secondary"
+            />
+            <MCIconButton
+              icon="trash-outline"
+              accessibilityLabel={getResource("mc_action_absent")}
+              disabled={!isQualificationActive}
+              onPress={markCurrentParticipantAbsent}
+              variant="secondary"
+            />
           </Box>
-          {isManualMode && (
+          <Box direction="row" justify="center" align="center" gap={24}>
+            <MCIconButton
+              icon="reload-outline"
+              accessibilityLabel={getResource("mc_action_restart")}
+              disabled={!isQualificationActive}
+              onPress={restartQualificationTimer}
+            />
+            <MCIconButton
+              icon={timerToggleIcon}
+              accessibilityLabel={
+                qualificationTimer.status === "paused"
+                  ? getResource("mc_action_resume")
+                  : getResource("mc_action_pause")
+              }
+              disabled={!canToggleTimer}
+              onPress={
+                qualificationTimer.status === "paused"
+                  ? resumeQualificationTimer
+                  : pauseQualificationTimer
+              }
+            />
+            <MCIconButton
+              icon="play-forward-outline"
+              accessibilityLabel={getResource("mc_action_next")}
+              disabled={!isQualificationActive || isLastParticipant}
+              onPress={advanceQualificationParticipant}
+            />
+          </Box>
+          {isFinishQualificationAvailable && (
             <Button
-              variant="outlined"
-              color="secondary"
-              disabled={currentIndex >= participants.length - 1}
+              variant="contained"
+              color="primary"
               onPress={() => {
-                void advanceQualificationParticipant();
+                void finishQualification();
               }}
             >
-              NEXT PARTICIPANT
+              {getResource('host_qualification_finish')}
             </Button>
           )}
         </Box>
@@ -173,6 +224,38 @@ export const HostLocalMCView: React.FC = () => {
   );
 };
 
+type MCIconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function MCIconButton({
+  icon,
+  accessibilityLabel,
+  disabled,
+  onPress,
+  variant = 'primary',
+}: {
+  icon: MCIconName;
+  accessibilityLabel: string;
+  disabled: boolean;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary';
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.iconButton, disabled && styles.iconButtonDisabled, styles[variant]]}
+    >
+      <Ionicons
+        name={icon}
+        size={variant === "primary" ? 28 : 20}
+        color={disabled ? Colors.text.secondary : Colors.primary.main}
+      />
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
@@ -188,10 +271,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.subtle,
   },
+  iconButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 39,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+    backgroundColor: Colors.dark.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonDisabled: {
+    borderColor: Colors.border.subtle,
+    opacity: 0.45,
+  },
   highlightCard: {
     backgroundColor: Colors.dark.backgroundLight,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.primary.main,
+  },
+  primary: {},
+  secondary: {
+    width: 52,
+    height: 52,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
 });

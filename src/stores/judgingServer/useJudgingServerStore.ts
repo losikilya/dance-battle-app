@@ -18,7 +18,6 @@ import {
 import { resolveAdvertisedHost } from '../../infrastructure/network/hostAddressResolver';
 import { createId } from '../../shared/lib/createId';
 import { useDemoBattleStore } from '../demoBattle/useDemoBattleStore';
-import { useSessionStore } from '../session/useSessionStore';
 
 export type ConnectedClient = {
   deviceId: string;
@@ -60,6 +59,16 @@ type JudgingServerActions = {
   setManualHostOverride: (host: string) => void;
   clearManualHostOverride: () => Promise<void>;
   broadcastState: () => void;
+  renameClient: (deviceId: string, name: string) => void;
+  assignClientRole: (deviceId: string, role: ClientRole) => void;
+  assignClientAsJudge: (
+    deviceId: string,
+    battleConfigurationId: string,
+  ) => Promise<string | null>;
+  unassignClientAsJudge: (
+    deviceId: string,
+    battleConfigurationId?: string,
+  ) => Promise<void>;
 };
 
 type UnknownMessage = {
@@ -68,10 +77,103 @@ type UnknownMessage = {
 };
 
 let tcpServer: ReturnType<typeof TcpSocket.createServer> | null = null;
+let startServerPromise: Promise<void> | null = null;
 const clientSockets = new Map<string, TcpSocketSocket>();
 let unsubscribeFromEventLog: (() => void) | null = null;
 let lastBroadcastEventIndex = 0;
 const BIND_HOST = '0.0.0.0';
+const SELF_HOST = '127.0.0.1';
+const MAX_PORT_ATTEMPTS = 5;
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    const nativeError = error as {
+      message?: unknown;
+      code?: unknown;
+      error?: unknown;
+      errno?: unknown;
+    };
+
+    return [
+      nativeError.message,
+      nativeError.code,
+      nativeError.error,
+      nativeError.errno,
+    ]
+      .filter((item): item is string => typeof item === 'string')
+      .join(' ');
+  }
+
+  return String(error);
+}
+
+function isAddressInUseError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return message.includes('address already in use') ||
+    message.includes('eaddrinuse') ||
+    message.includes('already in use');
+}
+
+async function listenTcpServer(
+  server: ReturnType<typeof TcpSocket.createServer>,
+  port: number,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const handleError = (error: Error): void => {
+      server.removeListener?.('error', handleError);
+      reject(error);
+    };
+
+    server.on('error', handleError);
+    console.log('[judging-server] start', {
+      bindAddress: BIND_HOST,
+      port,
+    });
+    server.listen({ port, host: BIND_HOST }, () => {
+      server.removeListener?.('error', handleError);
+      resolve();
+    });
+  });
+}
+
+async function closeTcpServer(): Promise<void> {
+  const server = tcpServer;
+  tcpServer = null;
+
+  if (!server) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    const timeout = setTimeout(finish, 250);
+
+    try {
+      server.close(() => {
+        clearTimeout(timeout);
+        finish();
+      });
+    } catch {
+      clearTimeout(timeout);
+      finish();
+    }
+  });
+}
 
 function createConnectionInfo(
   host: string,
@@ -155,12 +257,15 @@ function isJudgeCommand(
   );
 }
 
-function isMcTimerCommand(command: AppCommand): boolean {
+function isMcQualificationControlCommand(command: AppCommand): boolean {
   return (
     command.type === 'qualification.timer.pause' ||
     command.type === 'qualification.timer.resume' ||
     command.type === 'qualification.timer.restart' ||
-    command.type === 'qualification.advanceParticipant'
+    command.type === 'qualification.advanceParticipant' ||
+    command.type === 'qualification.markParticipantAbsent' ||
+    command.type === 'qualification.moveParticipantToEnd' ||
+    command.type === 'qualification.finish'
   );
 }
 
@@ -215,12 +320,9 @@ export const useJudgingServerStore = create<
       return;
     }
 
+    applyAdvertisedHost(SELF_HOST, null, 'self-localhost');
     set({
-      hostIp: null,
-      localIp: null,
-      connectionInfo: null,
-      lastError:
-        'No usable LAN IPv4 address is available yet. Refresh after enabling Wi-Fi or Host hotspot.',
+      lastError: null,
       error: null,
     });
     console.log('[judging-server] no advertised host candidate', {
@@ -337,55 +439,6 @@ export const useJudgingServerStore = create<
     );
   };
 
-  const assignJudgeId = (
-    deviceId: string,
-    requestedJudgeId?: string,
-  ): string | null => {
-    const judges = useDemoBattleStore.getState().judges;
-    const session = useSessionStore.getState();
-    const selfJudgeId = session.hasRole('judge')
-      ? session.selfJudgeId
-      : null;
-    const existingClient = get().connectedClients.find(
-      (client) => client.deviceId === deviceId,
-    );
-
-    if (
-      existingClient?.judgeId &&
-      judges.some((judge) => judge.id === existingClient.judgeId)
-    ) {
-      return existingClient.judgeId;
-    }
-
-    const assignedJudgeIds = new Set(
-      get()
-        .connectedClients.filter(
-          (client) =>
-            client.deviceId !== deviceId &&
-            client.role === 'judge' &&
-            client.isOnline &&
-            client.judgeId !== null,
-        )
-        .map((client) => client.judgeId as string),
-    );
-
-    if (selfJudgeId) {
-      assignedJudgeIds.add(selfJudgeId);
-    }
-
-    if (
-      requestedJudgeId &&
-      judges.some((judge) => judge.id === requestedJudgeId) &&
-      !assignedJudgeIds.has(requestedJudgeId)
-    ) {
-      return requestedJudgeId;
-    }
-
-    return (
-      judges.find((judge) => !assignedJudgeIds.has(judge.id))?.id ?? null
-    );
-  };
-
   const registerClient = (
     socket: TcpSocketSocket,
     message: JoinMessage,
@@ -413,20 +466,12 @@ export const useJudgingServerStore = create<
     }
 
     const deviceId = message.deviceId.trim();
-    const assignedJudgeId =
-      message.role === 'judge'
-        ? assignJudgeId(deviceId, message.requestedJudgeId)
-        : null;
-
-    if (message.role === 'judge' && assignedJudgeId === null) {
-      sendError(
-        socket,
-        'judge_unavailable',
-        'No Host judge is available for this device',
-        message.messageId,
-      );
-      return null;
-    }
+    const existingClient = get().connectedClients.find(
+      (client) => client.deviceId === deviceId,
+    );
+    const assignedJudgeId = existingClient?.judgeId ?? null;
+    const assignedRole = existingClient?.role ?? 'spectator';
+    const requestedName = message.name?.trim();
 
     const previousSocket = clientSockets.get(deviceId);
     if (previousSocket && previousSocket !== socket) {
@@ -437,29 +482,25 @@ export const useJudgingServerStore = create<
     const client: ConnectedClient = {
       deviceId,
       judgeId: assignedJudgeId,
-      name: message.name?.trim() || 'Unknown',
-      role: message.role,
+      name: requestedName || existingClient?.name || 'Unknown',
+      role: assignedRole,
       isOnline: true,
     };
 
-    set((state) => {
-      const exists = state.connectedClients.some(
-        (item) => item.deviceId === client.deviceId,
-      );
-
-      return {
-        connectedClients: exists
-          ? state.connectedClients.map((item) =>
-              item.deviceId === client.deviceId ? client : item,
-            )
-          : [...state.connectedClients, client],
-      };
-    });
+    set((state) => ({
+      connectedClients: [
+        ...state.connectedClients.filter(
+          (item) => item.deviceId !== client.deviceId,
+        ),
+        client,
+      ],
+    }));
 
     writeMessage(socket, {
       type: 'joined',
       messageId: createId('message'),
       requestMessageId: message.messageId,
+      assignedRole,
       assignedJudgeId,
       snapshot: getBattleSnapshot(),
     });
@@ -502,11 +543,11 @@ export const useJudgingServerStore = create<
     const command = message.command;
 
     if (client.role === 'mc') {
-      if (!isMcTimerCommand(command)) {
+      if (!isMcQualificationControlCommand(command)) {
         sendError(
           socket,
           'action_not_allowed',
-          'MC can control only qualification timer and participant advance',
+          'MC can control qualification flow only',
           message.messageId,
         );
         return;
@@ -691,74 +732,98 @@ export const useJudgingServerStore = create<
     manualHostOverride: null,
 
     startServer: async (): Promise<void> => {
-      if (get().status === 'running' || get().status === 'starting') {
+      if (get().status === 'running') {
         return;
       }
 
-      set({ status: 'starting', lastError: null, error: null });
+      if (startServerPromise) {
+        await startServerPromise;
+        return;
+      }
 
-      try {
-        const port = get().port;
-        tcpServer = TcpSocket.createServer(onClientConnect);
-        await new Promise<void>((resolve, reject) => {
-          const handleError = (error: Error): void => {
-            reject(error);
-          };
+      startServerPromise = (async () => {
+        set({ status: 'starting', lastError: null, error: null });
+        await closeTcpServer();
 
-          tcpServer?.on('error', handleError);
-          console.log('[judging-server] start', {
+        try {
+          const initialPort = get().port;
+          let port = initialPort;
+          let nextTcpServer: ReturnType<typeof TcpSocket.createServer> | null =
+            null;
+
+          for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
+            port = initialPort + offset;
+            nextTcpServer = TcpSocket.createServer(onClientConnect);
+            tcpServer = nextTcpServer;
+
+            try {
+              await listenTcpServer(nextTcpServer, port);
+              break;
+            } catch (error) {
+              await closeTcpServer();
+
+              if (
+                !isAddressInUseError(error) ||
+                offset === MAX_PORT_ATTEMPTS - 1
+              ) {
+                throw error;
+              }
+
+              console.log('[judging-server] port unavailable, trying next', {
+                port,
+              });
+            }
+          }
+
+          if (!nextTcpServer) {
+            throw new Error('Failed to create TCP server');
+          }
+
+          nextTcpServer.on('error', (error: Error) => {
+            const message = `TCP server error: ${error.message}`;
+            console.log('[judging-server] error', message);
+            stopEventLogBroadcasting();
+            void closeTcpServer();
+            set({
+              status: 'error',
+              lastError: message,
+              error: message,
+            });
+          });
+          set({
+            status: 'running',
+            port,
+            error: null,
+          });
+          console.log('[judging-server] listening', {
             bindAddress: BIND_HOST,
             port,
           });
-          tcpServer?.listen({ port, host: BIND_HOST }, () => {
-            tcpServer?.removeListener?.('error', handleError);
-            resolve();
-          });
-        });
-
-        tcpServer.on('error', (error: Error) => {
-          const message = `TCP server error: ${error.message}`;
-          console.log('[judging-server] error', message);
+          startEventLogBroadcasting();
+          await refreshHostAddress();
+        } catch (error) {
           stopEventLogBroadcasting();
+          await closeTcpServer();
+          const message = `Failed to start TCP server on ${BIND_HOST}:${get().port}: ${getErrorMessage(error)}`;
+          console.log('[judging-server] start error', message);
           set({
             status: 'error',
             lastError: message,
             error: message,
           });
-        });
-        set({
-          status: 'running',
-          error: null,
-        });
-        console.log('[judging-server] listening', {
-          bindAddress: BIND_HOST,
-          port,
-        });
-        startEventLogBroadcasting();
-        await refreshHostAddress();
-      } catch (error) {
-        stopEventLogBroadcasting();
-        tcpServer?.close();
-        tcpServer = null;
-        const message =
-          error instanceof Error
-            ? `Failed to start TCP server on ${BIND_HOST}:${get().port}: ${error.message}`
-            : `Failed to start TCP server on ${BIND_HOST}:${get().port}: ${String(error)}`;
-        console.log('[judging-server] start error', message);
-        set({
-          status: 'error',
-          lastError: message,
-          error: message,
-        });
-      }
+        } finally {
+          startServerPromise = null;
+        }
+      })();
+
+      await startServerPromise;
     },
 
     stopServer: (): void => {
       stopEventLogBroadcasting();
       clientSockets.forEach((socket) => socket.destroy());
       clientSockets.clear();
-      tcpServer?.close();
-      tcpServer = null;
+      void closeTcpServer();
       set({
         status: 'idle',
         connectedClients: [],
@@ -776,22 +841,135 @@ export const useJudgingServerStore = create<
       });
     },
 
+    renameClient: (deviceId, name): void => {
+      const nextName = name.trim();
+
+      if (nextName.length === 0) {
+        return;
+      }
+
+      set((state) => ({
+        connectedClients: state.connectedClients.map((client) =>
+          client.deviceId === deviceId
+            ? { ...client, name: nextName }
+            : client,
+        ),
+      }));
+    },
+
+    assignClientRole: (deviceId, role): void => {
+      set((state) => ({
+        connectedClients: state.connectedClients.map((client) =>
+          client.deviceId === deviceId
+            ? {
+                ...client,
+                role,
+                judgeId: role === 'judge' ? client.judgeId : null,
+              }
+            : client,
+        ),
+      }));
+
+      const client = get().connectedClients.find(
+        (item) => item.deviceId === deviceId,
+      );
+
+      if (!client) {
+        return;
+      }
+
+      sendToClient(deviceId, {
+        type: 'joined',
+        messageId: createId('message'),
+        requestMessageId: createId('message'),
+        assignedRole: role,
+        assignedJudgeId: role === 'judge' ? client.judgeId : null,
+        snapshot: getBattleSnapshot(),
+      });
+    },
+
+    assignClientAsJudge: async (
+      deviceId,
+      battleConfigurationId,
+    ): Promise<string | null> => {
+      if (!battleConfigurationId) {
+        return null;
+      }
+
+      const client = get().connectedClients.find(
+        (item) => item.deviceId === deviceId,
+      );
+
+      if (!client) {
+        return null;
+      }
+
+      const judgeId = await useDemoBattleStore.getState().assignBattleJudge({
+        battleConfigurationId,
+        deviceId: client.deviceId,
+        name: client.name,
+      });
+
+      if (!judgeId) {
+        return null;
+      }
+
+      set((state) => ({
+        connectedClients: state.connectedClients.map((item) =>
+          item.deviceId === deviceId
+            ? { ...item, role: 'judge', judgeId }
+            : item,
+        ),
+      }));
+
+      sendToClient(client.deviceId, {
+        type: 'joined',
+        messageId: createId('message'),
+        requestMessageId: createId('message'),
+        assignedRole: 'judge',
+        assignedJudgeId: judgeId,
+        snapshot: getBattleSnapshot(),
+      });
+      get().broadcastState();
+
+      return judgeId;
+    },
+
+    unassignClientAsJudge: async (
+      deviceId,
+      battleConfigurationId,
+    ): Promise<void> => {
+      await useDemoBattleStore.getState().unassignBattleJudge({
+        battleConfigurationId,
+        deviceId,
+      });
+
+      set((state) => ({
+        connectedClients: state.connectedClients.map((client) =>
+          client.deviceId === deviceId
+            ? { ...client, role: 'spectator', judgeId: null }
+            : client,
+        ),
+      }));
+
+      sendToClient(deviceId, {
+        type: 'joined',
+        messageId: createId('message'),
+        requestMessageId: createId('message'),
+        assignedRole: 'spectator',
+        assignedJudgeId: null,
+        snapshot: getBattleSnapshot(),
+      });
+      get().broadcastState();
+    },
+
     restartServer: async (): Promise<void> => {
       stopEventLogBroadcasting();
       clientSockets.forEach((socket) => socket.destroy());
       clientSockets.clear();
       set({ connectedClients: [] });
 
-      await new Promise<void>((resolve) => {
-        if (tcpServer) {
-          tcpServer.close(() => {
-            tcpServer = null;
-            resolve();
-          });
-        } else {
-          resolve();
-        }
-      });
+      await closeTcpServer();
 
       set({ status: 'idle' });
       await get().startServer();

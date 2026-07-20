@@ -1,18 +1,29 @@
 import { JudgeQualificationScreen } from '@screens/JudgeQualificationScreen';
 import { JudgeBattleVotingScreen } from '@screens/JudgeBattleVotingScreen';
 import { JudgeConnectScreen } from '@screens/JudgeConnectScreen';
+import { ConnectionLostScreen } from '@screens/ConnectionLostScreen';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
+import { Redirect } from 'expo-router';
 
 export default function JudgingTab(): React.JSX.Element {
-  const role = useSessionStore(s => s.role);
+  const roles = useSessionStore(s => s.roles);
+  const assignedClientRole = useJudgingClientStore(s => s.role);
   const status = useJudgingClientStore(s => s.status);
+  const serverAddress = useJudgingClientStore(s => s.serverAddress);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const eventStatus = syncedState?.event.status ?? 'draft';
+  const effectiveRole = roles.includes('host') && assignedClientRole === null
+    ? 'host'
+    : assignedClientRole ?? 'spectator';
 
-  if (role !== 'judge') {
+  if (effectiveRole === 'mc' || effectiveRole === 'spectator') {
+    return <Redirect href="/(tabs)/live" />;
+  }
+
+  if (effectiveRole !== 'judge') {
     return (
       <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24}>
         <Text variant="body2" color="textSecondary" centered>
@@ -23,6 +34,10 @@ export default function JudgingTab(): React.JSX.Element {
   }
 
   if (status !== 'connected') {
+    if (serverAddress !== null) {
+      return <ConnectionLostScreen />;
+    }
+
     return <JudgeConnectScreen />;
   }
 

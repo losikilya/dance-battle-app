@@ -4,15 +4,23 @@ import { Judge } from '../judge/types';
 import { createId } from '../../shared/lib/createId';
 
 export function createDemoEvent(): DanceEvent {
+  const battleConfiguration = {
+    id: 'battle_config_demo',
+    categoryTitle: 'Hip-Hop 1x1',
+    status: 'draft' as const,
+    format: null,
+    assignedJudgeIds: ['judge_1'],
+    qualificationDurationSeconds: 60,
+    qualificationAdvanceMode: 'manual' as const,
+  };
+
   return {
     id: createId('event'),
     title: 'Urban Clash 2026',
-    categoryTitle: 'Hip-Hop 1x1',
     status: 'draft',
-    format: 'top8',
-    judgesCount: 1,
-    qualificationDurationSeconds: 60,
-    qualificationAdvanceMode: 'manual',
+    battleConfiguration,
+    battleConfigurations: [battleConfiguration],
+    activeBattleConfigurationId: battleConfiguration.id,
     createdAt: new Date().toISOString(),
   };
 }
@@ -34,6 +42,12 @@ export function createDemoParticipants(): Participant[] {
 
 export function createDemoJudges(): Judge[] {
   return [
-    { id: 'judge_1', name: 'Judge Alex', role: 'head' },
+    {
+      id: 'judge_1',
+      name: 'Judge Alex',
+      role: 'head',
+      deviceId: 'demo_host',
+      battleConfigurationId: 'battle_config_demo',
+    },
   ];
 }

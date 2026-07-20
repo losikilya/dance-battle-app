@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-const DATABASE_NAME = 'dance_battle.db';
+const DATABASE_NAME = 'versa.db';
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 

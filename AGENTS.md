@@ -108,6 +108,8 @@ Battle voting:
 - Do not move UI logic into domain.
 - Do not put SQLite code inside domain.
 - Do not add tests unless explicitly requested for this project stage.
+- Do not hardcode user-facing UI labels, placeholders, or messages. Add a key to
+  `src/resources/resources.ts` and read it through `getResource()`.
 
 ## Current project priorities
 

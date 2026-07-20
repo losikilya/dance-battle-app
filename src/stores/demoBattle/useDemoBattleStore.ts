@@ -18,6 +18,11 @@ import type { BattleFormat } from "@domain/event/types";
 import { createCommand } from "@domain/commands/createCommand";
 import { handleCommand } from "@domain/commands/commandHandlers";
 import {
+  getActiveBattleConfigurationId,
+  getQualificationParticipants,
+  isInBattleConfiguration,
+} from "@domain/sync/stateSelectors";
+import {
   CommandError,
   CommandHandlerResult,
   commandFailure,
@@ -78,7 +83,7 @@ type DemoBattleComputed = {
   canGoToNextQualificationParticipant: () => boolean;
   canManuallyAdvanceQualificationParticipant: () => boolean;
   canFinishQualification: () => boolean;
-  canGenerateTop8: () => boolean;
+  canGenerateBracket: () => boolean;
   canStartBattle: (battleId: string) => boolean;
   canOpenBattleVoting: (battleId: string) => boolean;
   canSubmitBattleVote: (battleId: string) => boolean;
@@ -86,25 +91,40 @@ type DemoBattleComputed = {
 };
 
 type AddParticipantParams = {
+  battleConfigurationId?: string;
   name: string;
   number: number;
   crew?: string;
   city?: string;
 };
+type ImportParticipantParams = AddParticipantParams;
 type CreateEventParams = {
   title: string;
+};
+type ConfigureBattleParams = {
   categoryTitle: string;
-  format: BattleFormat;
-  judgesCount: number;
   qualificationDurationSeconds?: number;
   qualificationAdvanceMode?: "manual" | "automatic";
 };
 
-export type HostDemoEventParams = {
-  title?: string;
+type AssignBattleJudgeParams = {
+  battleConfigurationId?: string;
+  deviceId: string;
+  name: string;
+};
+
+type UnassignBattleJudgeParams = {
+  battleConfigurationId?: string;
+  deviceId: string;
+};
+type RenameBattleJudgeParams = {
+  judgeId: string;
+  name: string;
+};
+
+export type HostDemoBattleParams = {
   categoryTitle?: string;
   participantsCount?: number;
-  judgesCount?: number;
   format?: BattleFormat;
   qualificationDurationSeconds?: number;
   qualificationAdvanceMode?: "manual" | "automatic";
@@ -115,17 +135,26 @@ type DemoBattleActions = {
   executeRemoteCommand: (
     command: AppCommand,
   ) => Promise<CommandHandlerResult>;
-  createHostDemoEvent: (params?: HostDemoEventParams) => Promise<void>;
+  loadHostDemoBattle: (params?: HostDemoBattleParams) => Promise<string | null>;
 
   resetDemo: () => Promise<void>;
+  deleteLocalEvent: () => Promise<void>;
   clearLastCommandError: () => void;
 
-  createEvent: (params: CreateEventParams) => Promise<string | null>;
+  createEvent: (params: CreateEventParams) => Promise<boolean>;
+  finishEvent: () => Promise<void>;
+  configureBattle: (params: ConfigureBattleParams) => Promise<string | null>;
+  selectBattleConfiguration: (battleConfigurationId: string) => Promise<void>;
+  deleteBattleConfiguration: (battleConfigurationId: string) => Promise<void>;
+  assignBattleJudge: (params: AssignBattleJudgeParams) => Promise<string | null>;
+  unassignBattleJudge: (params: UnassignBattleJudgeParams) => Promise<void>;
+  renameBattleJudge: (params: RenameBattleJudgeParams) => Promise<void>;
   addParticipant: (params: AddParticipantParams) => void;
+  importParticipants: (participants: ImportParticipantParams[]) => Promise<boolean>;
   removeParticipant: (participantId: string) => void;
   toggleParticipantCheckIn: (participantId: string) => void;
 
-  startQualification: () => Promise<void>;
+  startQualification: (battleConfigurationId?: string) => Promise<void>;
   submitQualificationScore: (
     params: SubmitQualificationScoreParams,
   ) => Promise<void>;
@@ -133,11 +162,13 @@ type DemoBattleActions = {
   resumeQualificationTimer: () => Promise<void>;
   restartQualificationTimer: () => Promise<void>;
   advanceQualificationParticipant: () => Promise<void>;
+  markCurrentParticipantAbsent: () => Promise<void>;
+  moveCurrentParticipantToEnd: () => Promise<void>;
   goToNextQualificationParticipant: () => Promise<void>;
   finishQualification: () => Promise<void>;
 
   fillRandomQualificationScores: () => Promise<void>;
-  generateTop8: () => Promise<void>;
+  generateBracket: (participantIds: string[]) => Promise<void>;
 
   startBattle: (battleId: string) => Promise<void>;
   openBattleVoting: (battleId: string) => Promise<void>;
@@ -179,6 +210,58 @@ function createInitialStoreState(): DemoBattleState {
   };
 }
 
+function getAssignedBattleJudges(state: BattleAppState) {
+  const assignedJudgeIds = state.event.battleConfiguration?.assignedJudgeIds ?? [];
+
+  return state.judges.filter((judge) => assignedJudgeIds.includes(judge.id));
+}
+
+function getActiveBattleRosterParticipants(state: BattleAppState): Participant[] {
+  const configId = getActiveBattleConfigurationId(state.event);
+  return state.participants.filter((p) => isInBattleConfiguration(configId, p));
+}
+
+function getActiveBattleParticipants(state: BattleAppState): Participant[] {
+  return getQualificationParticipants(state);
+}
+
+function getActiveBattleScores(state: BattleAppState): QualificationScore[] {
+  const activeParticipantIds = new Set(
+    getActiveBattleParticipants(state).map((p) => p.id),
+  );
+  const activeJudgeIds = new Set(
+    getAssignedBattleJudges(state).map((j) => j.id),
+  );
+
+  return state.scores.filter(
+    (score) =>
+      activeParticipantIds.has(score.participantId) &&
+      activeJudgeIds.has(score.judgeId),
+  );
+}
+
+function getActiveBattles(state: BattleAppState): Battle[] {
+  const configId = getActiveBattleConfigurationId(state.event);
+  return state.battles.filter((b) => isInBattleConfiguration(configId, b));
+}
+
+function isBattleInActiveConfiguration(state: BattleAppState, battle: Battle): boolean {
+  return isInBattleConfiguration(getActiveBattleConfigurationId(state.event), battle);
+}
+
+function getBattleConfigurationStatus(
+  state: BattleAppState,
+  battle: Battle,
+): BattleAppState['event']['status'] {
+  if (!battle.battleConfigurationId) {
+    return state.event.status;
+  }
+
+  return state.event.battleConfigurations.find(
+    (configuration) => configuration.id === battle.battleConfigurationId,
+  )?.status ?? state.event.status;
+}
+
 function createHostDemoParticipant(
   index: number,
 ): Omit<Participant, "id" | "checkIn" | "status"> {
@@ -215,7 +298,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
   let scheduleQualificationTimerCoordinator = (): void => {};
 
-  const applyEventsToStore = (events: AppEvent[]) => {
+  const applyEventsToStore = (
+    events: AppEvent[],
+    replaceEventLog = false,
+  ): void => {
     set((state) => {
       const nextBattleState = events.reduce(
         (currentState, event) => applyEvent(currentState, event),
@@ -224,7 +310,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
       return {
         ...nextBattleState,
-        eventLog: [...state.eventLog, ...events],
+        eventLog: replaceEventLog ? events : [...state.eventLog, ...events],
         lastCommandError: null,
         storageError: null,
       };
@@ -258,8 +344,15 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       }
 
       try {
-        await saveAppEvents(result.events);
-        applyEventsToStore(result.events);
+        const replacesExistingEvent = command.type === "event.create";
+
+        if (replacesExistingEvent) {
+          await replaceAppEvents(result.events);
+        } else {
+          await saveAppEvents(result.events);
+        }
+
+        applyEventsToStore(result.events, replacesExistingEvent);
         return result;
       } catch (error) {
         const message =
@@ -298,10 +391,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
     const isLastParticipant =
       state.currentQualificationParticipantIndex >=
-      state.participants.length - 1;
+      getActiveBattleParticipants(state).length - 1;
 
     if (
-      state.event.qualificationAdvanceMode === "automatic" &&
+      state.event.battleConfiguration?.qualificationAdvanceMode === "automatic" &&
       !isLastParticipant
     ) {
       await executeCommand(
@@ -362,19 +455,13 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
     executeRemoteCommand: executePersistedCommand,
 
-    createHostDemoEvent: async (params = {}) => {
-      await enqueueOperation(async () => {
-        const title = params.title ?? "Urban Clash 2026";
+    loadHostDemoBattle: async (params = {}) => {
+      return await enqueueOperation(async () => {
         const categoryTitle = params.categoryTitle ?? "Hip-Hop 1x1";
         const participantsCount = Math.max(
           0,
           Math.floor(params.participantsCount ?? 10),
         );
-        const judgesCount = Math.max(
-          1,
-          Math.floor(params.judgesCount ?? 1),
-        );
-        const format = params.format ?? "top8";
         const qualificationDurationSeconds =
           params.qualificationDurationSeconds ?? 60;
         const qualificationAdvanceMode =
@@ -382,6 +469,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
 
         let nextState = pickBattleAppState(get());
         const nextEvents: AppEvent[] = [];
+        let demoBattleConfigurationId: string | null = null;
 
         const appendCommand = (command: AppCommand): void => {
           const result = handleCommand(nextState, command);
@@ -397,19 +485,32 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           );
         };
 
-        appendCommand(createCommand("event.reset", {}));
         appendCommand(
-          createCommand("event.create", {
-            title,
+          createCommand("battle.configure", {
             categoryTitle,
-            format,
-            judgesCount,
             qualificationDurationSeconds,
             qualificationAdvanceMode,
           }),
         );
+        demoBattleConfigurationId =
+          nextEvents.findLast((event) => event.type === "battle.configured")
+            ?.payload.configuration.id ?? null;
 
-        for (const participant of nextState.participants) {
+        if (!demoBattleConfigurationId) {
+          throw new Error("Demo battle configuration was not created");
+        }
+
+        appendCommand(
+          createCommand("battle.assignJudge", {
+            battleConfigurationId: demoBattleConfigurationId,
+            deviceId: "demo_host",
+            name: "Judge Alex",
+          }),
+        );
+
+        for (const participant of nextState.participants.filter(
+          (item) => item.battleConfigurationId === demoBattleConfigurationId,
+        )) {
           appendCommand(
             createCommand("participant.remove", {
               participantId: participant.id,
@@ -421,27 +522,31 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
           appendCommand(
             createCommand(
               "participant.add",
-              createHostDemoParticipant(index),
+              {
+                ...createHostDemoParticipant(index),
+                battleConfigurationId: demoBattleConfigurationId,
+              },
             ),
           );
         }
 
         try {
-          await replaceAppEvents(nextEvents);
+          await saveAppEvents(nextEvents);
           set({
             ...nextState,
-            eventLog: nextEvents,
+            eventLog: [...get().eventLog, ...nextEvents],
             lastCommandError: null,
             storageError: null,
             isHydrated: true,
             isHydrating: false,
           });
           scheduleQualificationTimerCoordinator();
+          return demoBattleConfigurationId;
         } catch (error) {
           const message =
             error instanceof Error
               ? error.message
-              : "Failed to create Host demo event";
+              : "Failed to load Host demo battle";
 
           set({ storageError: message });
           throw error;
@@ -450,11 +555,12 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     getRanking: () => {
-      const { participants, scores } = get();
+      const state = get();
+      const participants = getActiveBattleParticipants(state);
 
       return calculateRanking({
         participants,
-        scores,
+        scores: getActiveBattleScores(state),
       });
     },
 
@@ -468,7 +574,7 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     getChampionId: () => {
-      const { battles } = get();
+      const battles = getActiveBattles(get());
 
       const finalBattle = battles.find(
         (battle) => battle.round === "final" && battle.winnerId,
@@ -478,7 +584,9 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     getCurrentQualificationParticipant: () => {
-      const { participants, currentQualificationParticipantIndex } = get();
+      const state = get();
+      const participants = getActiveBattleParticipants(state);
+      const { currentQualificationParticipantIndex } = state;
 
       return participants[currentQualificationParticipantIndex] ?? null;
     },
@@ -503,8 +611,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       const { event } = get();
 
       return {
-        durationSeconds: event.qualificationDurationSeconds,
-        advanceMode: event.qualificationAdvanceMode,
+        durationSeconds:
+          event.battleConfiguration?.qualificationDurationSeconds ?? 60,
+        advanceMode:
+          event.battleConfiguration?.qualificationAdvanceMode ?? "manual",
       };
     },
 
@@ -527,7 +637,9 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      const { scores, judges } = get();
+      const state = get();
+      const { scores } = state;
+      const judges = getAssignedBattleJudges(state);
 
       const currentParticipantScores = scores.filter(
         (score) => score.participantId === currentParticipant.id,
@@ -541,7 +653,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     isQualificationFinished: () => {
-      const { participants, judges, scores } = get();
+      const state = get();
+      const participants = getActiveBattleParticipants(state);
+      const scores = getActiveBattleScores(state);
+      const judges = getAssignedBattleJudges(state);
 
       const expectedScoresCount = participants.length * judges.length;
 
@@ -549,13 +664,16 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     getActiveBattle: () => {
-      const { battles, activeBattleId } = get();
+      const state = get();
+      const { activeBattleId } = state;
 
       if (!activeBattleId) {
         return null;
       }
 
-      return battles.find((battle) => battle.id === activeBattleId) ?? null;
+      return getActiveBattles(state).find(
+        (battle) => battle.id === activeBattleId,
+      ) ?? null;
     },
 
     getVotesForBattle: (battleId) => {
@@ -571,21 +689,29 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     canStartQualification: () => {
-      const { event, participants, judges } = get();
+      const { event, judges } = get();
+      const activeParticipants = getActiveBattleParticipants(get());
+      const assignedJudgeIds = event.battleConfiguration?.assignedJudgeIds ?? [];
 
       return (
         event.status === "draft" &&
-        participants.length >= 8 &&
-        judges.length > 0
+        event.battleConfiguration !== null &&
+        activeParticipants.length > 0 &&
+        judges.some((judge) => assignedJudgeIds.includes(judge.id))
       );
     },
 
     canGoToNextQualificationParticipant: () => {
-      return get().canManuallyAdvanceQualificationParticipant();
+      return (
+        get().canManuallyAdvanceQualificationParticipant() &&
+        get().isCurrentParticipantScoredByAllJudges()
+      );
     },
 
     canManuallyAdvanceQualificationParticipant: () => {
-      const { event, participants, currentQualificationParticipantIndex } = get();
+      const state = get();
+      const { event, currentQualificationParticipantIndex } = state;
+      const participants = getActiveBattleParticipants(state);
 
       const isLastParticipant =
         currentQualificationParticipantIndex >= participants.length - 1;
@@ -601,8 +727,12 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       return get().isQualificationFinished();
     },
 
-    canGenerateTop8: () => {
-      const { event, participants, judges, scores, battles } = get();
+    canGenerateBracket: () => {
+      const state = get();
+      const { event, judges } = state;
+      const participants = getActiveBattleParticipants(state);
+      const battles = getActiveBattles(state);
+      const scores = getActiveBattleScores(state);
 
       if (event.status !== "qualification_finished") {
         return false;
@@ -612,17 +742,23 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      const expectedScoresCount = participants.length * judges.length;
+      if (participants.length < 2) {
+        return false;
+      }
+
+      const assignedJudgeIds = event.battleConfiguration?.assignedJudgeIds ?? [];
+      const assignedJudges = judges.filter((judge) =>
+        assignedJudgeIds.includes(judge.id),
+      );
+
+      const expectedScoresCount = participants.length * assignedJudges.length;
 
       return scores.length >= expectedScoresCount;
     },
 
     canStartBattle: (battleId) => {
-      const { event, battles } = get();
-
-      if (event.status !== "battle") {
-        return false;
-      }
+      const state = get();
+      const { battles } = state;
 
       const battle = battles.find((item) => item.id === battleId);
 
@@ -630,15 +766,13 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      return battle.status === "pending";
+      return getBattleConfigurationStatus(state, battle) === "battle" &&
+        battle.status === "pending";
     },
 
     canOpenBattleVoting: (battleId) => {
-      const { event, battles } = get();
-
-      if (event.status !== 'battle') {
-        return false;
-      }
+      const state = get();
+      const { battles } = state;
 
       const battle = battles.find((item) => item.id === battleId);
 
@@ -646,15 +780,13 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      return battle.status === 'active';
+      return getBattleConfigurationStatus(state, battle) === 'battle' &&
+        battle.status === 'active';
     },
 
     canSubmitBattleVote: (battleId) => {
-      const { event, battles } = get();
-
-      if (event.status !== "battle") {
-        return false;
-      }
+      const state = get();
+      const { battles } = state;
 
       const battle = battles.find((item) => item.id === battleId);
 
@@ -662,38 +794,28 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return false;
       }
 
-      return battle.status === "voting";
+      return getBattleConfigurationStatus(state, battle) === "battle" &&
+        battle.status === "voting";
     },
 
     canGenerateNextRound: () => {
-      const { battles } = get();
-
-      const top8Battles = battles.filter((battle) => battle.round === "top8");
-
-      const semifinalBattles = battles.filter(
-        (battle) => battle.round === "semifinal",
+      const battles = getActiveBattles(get());
+      const roundOrder = ["custom", "top32", "top16", "top8", "semifinal", "final"] as const;
+      const latestRoundIndex = roundOrder.findLastIndex((round) =>
+        battles.some((battle) => battle.round === round),
       );
 
-      const hasSemifinals = semifinalBattles.length > 0;
-      const hasFinal = battles.some((battle) => battle.round === "final");
-
-      const top8Finished =
-        top8Battles.length === 4 &&
-        top8Battles.every((battle) => battle.status === "finished");
-
-      const semifinalsFinished =
-        semifinalBattles.length === 2 &&
-        semifinalBattles.every((battle) => battle.status === "finished");
-
-      if (top8Finished && !hasSemifinals) {
-        return true;
+      if (latestRoundIndex < 0 || latestRoundIndex === roundOrder.length - 1) {
+        return false;
       }
 
-      if (semifinalsFinished && !hasFinal) {
-        return true;
-      }
+      const currentRound = roundOrder[latestRoundIndex];
+      const currentBattles = battles.filter(
+        (battle) => battle.round === currentRound,
+      );
 
-      return false;
+      return currentBattles.length > 0 &&
+        currentBattles.every((battle) => battle.status === "finished");
     },
 
     clearLastCommandError: () => {
@@ -735,36 +857,114 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       }
     },
 
-    createEvent: async ({
-      title,
-      categoryTitle,
-      format,
-      judgesCount,
-      qualificationDurationSeconds,
-      qualificationAdvanceMode,
-    }) => {
+    deleteLocalEvent: async () => {
+      try {
+        clearQualificationTimerTimeout();
+        await clearAppEvents();
+
+        set({
+          ...createInitialStoreState(),
+          isHydrated: true,
+          isHydrating: false,
+        });
+      } catch (error) {
+        set({
+          storageError:
+            error instanceof Error
+              ? error.message
+              : "Failed to delete local event",
+        });
+      }
+    },
+
+    createEvent: async ({ title }) => {
       const previousEventId = get().event.id;
 
       await executeCommand(
         createCommand("event.create", {
           title,
-          categoryTitle,
-          format,
-          judgesCount,
-          qualificationDurationSeconds,
-          qualificationAdvanceMode,
         }),
       );
 
-      return get().event.id === previousEventId
-        ? null
-        : get().judges[0]?.id ?? null;
+      return get().event.id !== previousEventId;
     },
 
-    addParticipant: async ({ name, number, crew, city }) => {
-      await executeCommand(
-        createCommand("participant.add", { name, number, crew, city }),
+    finishEvent: async () => {
+      await executeCommand(createCommand("event.finish", {}));
+    },
+
+    configureBattle: async (params) => {
+      const previousConfigurationIds = new Set(
+        get().event.battleConfigurations.map((configuration) => configuration.id),
       );
+
+      await executeCommand(createCommand("battle.configure", params));
+
+      return get().event.battleConfigurations.find(
+        (configuration) => !previousConfigurationIds.has(configuration.id),
+      )?.id ?? null;
+    },
+
+    selectBattleConfiguration: async (battleConfigurationId) => {
+      await executeCommand(
+        createCommand("battle.selectConfiguration", {
+          battleConfigurationId,
+        }),
+      );
+    },
+
+    deleteBattleConfiguration: async (battleConfigurationId) => {
+      await executeCommand(
+        createCommand("battle.deleteConfiguration", {
+          battleConfigurationId,
+        }),
+      );
+    },
+
+    assignBattleJudge: async (params) => {
+      await executeCommand(createCommand("battle.assignJudge", params));
+
+      const configurationId =
+        params.battleConfigurationId ?? get().event.battleConfiguration?.id;
+      const configuration = get().event.battleConfigurations.find(
+        (item) => item.id === configurationId,
+      ) ?? get().event.battleConfiguration;
+
+      return get().judges.find(
+        (judge) =>
+          judge.deviceId === params.deviceId &&
+          configuration?.assignedJudgeIds.includes(judge.id),
+      )?.id ?? null;
+    },
+
+    unassignBattleJudge: async (params) => {
+      await executeCommand(createCommand("battle.unassignJudge", params));
+    },
+
+    renameBattleJudge: async (params) => {
+      await executeCommand(createCommand("battle.renameJudge", params));
+    },
+
+    addParticipant: async ({ battleConfigurationId, name, number, crew, city }) => {
+      await executeCommand(
+        createCommand("participant.add", {
+          battleConfigurationId,
+          name,
+          number,
+          crew,
+          city,
+        }),
+      );
+    },
+
+    importParticipants: async (participants) => {
+      const previousCount = getActiveBattleRosterParticipants(get()).length;
+
+      await executeCommand(
+        createCommand("participant.import", { participants }),
+      );
+
+      return getActiveBattleRosterParticipants(get()).length > previousCount;
     },
 
     removeParticipant: async (participantId) => {
@@ -779,8 +979,10 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
-    startQualification: async () => {
-      await executeCommand(createCommand("qualification.start", {}));
+    startQualification: async (battleConfigurationId) => {
+      await executeCommand(
+        createCommand("qualification.start", { battleConfigurationId }),
+      );
     },
 
     submitQualificationScore: async ({ participantId, judgeId, score }) => {
@@ -813,6 +1015,46 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       );
     },
 
+    markCurrentParticipantAbsent: async () => {
+      const participant = get().getCurrentQualificationParticipant();
+
+      if (!participant) {
+        set({
+          lastCommandError: {
+            code: "not_found",
+            message: "Current participant was not found",
+          },
+        });
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.markParticipantAbsent", {
+          participantId: participant.id,
+        }),
+      );
+    },
+
+    moveCurrentParticipantToEnd: async () => {
+      const participant = get().getCurrentQualificationParticipant();
+
+      if (!participant) {
+        set({
+          lastCommandError: {
+            code: "not_found",
+            message: "Current participant was not found",
+          },
+        });
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.moveParticipantToEnd", {
+          participantId: participant.id,
+        }),
+      );
+    },
+
     goToNextQualificationParticipant: async () => {
       await get().advanceQualificationParticipant();
     },
@@ -821,8 +1063,8 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       await executeCommand(createCommand("qualification.finish", {}));
     },
 
-    generateTop8: async () => {
-      await executeCommand(createCommand("bracket.generateTop8", {}));
+    generateBracket: async (participantIds) => {
+      await executeCommand(createCommand("bracket.generate", { participantIds }));
     },
 
     startBattle: async (battleId) => {
@@ -900,11 +1142,14 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
         return;
       }
 
-      for (const judge of get().judges) {
+      for (const judge of getAssignedBattleJudges(get())) {
+        const participantIds = afterOpen.participantIds ?? [
+          afterOpen.participantAId,
+          afterOpen.participantBId,
+        ];
         const winnerId =
-          Math.random() > 0.5
-            ? afterOpen.participantAId
-            : afterOpen.participantBId;
+          participantIds[Math.floor(Math.random() * participantIds.length)] ??
+          afterOpen.participantAId;
 
         await executeCommand(
           createCommand('battle.submitVote', {
@@ -917,11 +1162,63 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
     },
 
     fillRandomQualificationScores: async () => {
+      const initialState = get();
+      const activeBattleConfigurationId =
+        initialState.event.activeBattleConfigurationId ??
+        initialState.event.battleConfiguration?.id;
+
+      if (
+        activeBattleConfigurationId &&
+        getActiveBattleRosterParticipants(initialState).length === 0
+      ) {
+        for (let index = 0; index < 10; index += 1) {
+          await executeCommand(
+            createCommand("participant.add", {
+              ...createHostDemoParticipant(index),
+              battleConfigurationId: activeBattleConfigurationId,
+            }),
+          );
+        }
+      }
+
+      const stateAfterParticipants = get();
+      const rosterParticipants = stateAfterParticipants.participants.filter(
+        (participant) =>
+          isInBattleConfiguration(activeBattleConfigurationId, participant),
+      );
+
+      for (const participant of rosterParticipants) {
+        if (participant.checkIn !== "present") {
+          await executeCommand(
+            createCommand("participant.toggleCheckIn", {
+              participantId: participant.id,
+            }),
+          );
+        }
+      }
+
+      const assignedJudges = getAssignedBattleJudges(stateAfterParticipants);
+
+      if (
+        activeBattleConfigurationId &&
+        assignedJudges.length === 0
+      ) {
+        await executeCommand(
+          createCommand("battle.assignJudge", {
+            battleConfigurationId: activeBattleConfigurationId,
+            deviceId: "demo_host",
+            name: "Judge Alex",
+          }),
+        );
+      }
+
       if (get().event.status === "draft") {
         await executeCommand(createCommand("qualification.start", {}));
       }
 
-      const { participants, judges } = get();
+      const state = get();
+      const participants = getActiveBattleParticipants(state);
+      const judges = getAssignedBattleJudges(state);
 
       for (const participant of participants) {
         for (const judge of judges) {

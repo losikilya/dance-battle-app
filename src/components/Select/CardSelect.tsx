@@ -13,6 +13,7 @@ type Option = {
 type Props = {
   value?: string | number;
   label?: string;
+  description?: string;
   defaultValue?: string;
   options: Option[];
   onChange?: (value: string) => void;
@@ -21,6 +22,7 @@ type Props = {
 export const CardSelect: React.FC<Props> = ({
   value: controlledValue,
   label,
+  description,
   defaultValue,
   options,
   onChange,
@@ -39,6 +41,11 @@ export const CardSelect: React.FC<Props> = ({
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
+      {description && (
+        <Text color="textSecondary" variant="body2" style={styles.description}>
+          {description}
+        </Text>
+      )}
 
       <View style={styles.row}>
         {options.map((option) => {
@@ -77,6 +84,9 @@ const styles = StyleSheet.create({
     color: Colors.secondary.light,
     fontSize: 14,
     fontWeight: "600",
+    marginLeft: 4,
+  },
+  description: {
     marginLeft: 4,
   },
   row: {

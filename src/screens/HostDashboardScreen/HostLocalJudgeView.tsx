@@ -1,21 +1,64 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Button, Text } from '@components';
 import Colors from '@constants/Colors';
 import { FOOTER_HEIGHT } from '@constants/Dimensions';
+import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { ScoreNumpad } from '@screens/JudgeQualificationScreen/ScoreNumpad';
 import { DancerVoteCard } from '@screens/JudgeBattleVotingScreen/DancerVoteCard';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
+import { getBattleParticipantDisplayRows } from '@screens/shared/battleDisplay';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
+
+function getInitialLocalQualificationParticipantIndex(params: {
+  currentIndex: number;
+  participants: ReturnType<typeof useDemoBattleStore.getState>['participants'];
+  scores: ReturnType<typeof useDemoBattleStore.getState>['scores'];
+  judgeId: string | null;
+}): number | null {
+  const { currentIndex, participants, scores, judgeId } = params;
+
+  if (participants.length === 0) {
+    return null;
+  }
+
+  if (!judgeId) {
+    return Math.min(currentIndex, participants.length - 1);
+  }
+
+  for (let index = 0; index <= currentIndex; index += 1) {
+    const participant = participants[index];
+
+    if (
+      participant &&
+      !scores.some(
+        score =>
+          score.participantId === participant.id && score.judgeId === judgeId,
+      )
+    ) {
+      return index;
+    }
+  }
+
+  return Math.min(currentIndex, participants.length - 1);
+}
 
 export const HostLocalJudgeView: React.FC = () => {
   const [selectedScore, setSelectedScore] = useState<number | null>(null);
   const [pendingVote, setPendingVote] = useState<string | null>(null);
+  const [
+    localQualificationParticipantIndex,
+    setLocalQualificationParticipantIndex,
+  ] = useState<number | null>(null);
+  const [qualificationViewMode, setQualificationViewMode] = useState<
+    'score' | 'list'
+  >('score');
 
   const hasJudgeRole = useSessionStore(state => state.hasRole('judge'));
   const selfJudgeId = useSessionStore(state => state.selfJudgeId);
-  const role = useSessionStore(state => state.role);
+  const isHost = useSessionStore(state => state.roles.includes('host'));
   const event = useDemoBattleStore(state => state.event);
   const participants = useDemoBattleStore(state => state.participants);
   const judges = useDemoBattleStore(state => state.judges);
@@ -29,32 +72,35 @@ export const HostLocalJudgeView: React.FC = () => {
   const submitQualificationScore = useDemoBattleStore(
     state => state.submitQualificationScore,
   );
-  const canGoToNextQualificationParticipant = useDemoBattleStore(
-    state => state.canGoToNextQualificationParticipant,
-  );
-  const goToNextQualificationParticipant = useDemoBattleStore(
-    state => state.goToNextQualificationParticipant,
-  );
-  const canFinishQualification = useDemoBattleStore(
-    state => state.canFinishQualification,
-  );
-  const finishQualification = useDemoBattleStore(
-    state => state.finishQualification,
-  );
   const submitBattleVote = useDemoBattleStore(
     state => state.submitBattleVote,
   );
 
-  const currentParticipant = participants[currentIndex] ?? null;
+  const qualificationParticipants = useMemo(
+    () =>
+      getQualificationParticipants({
+        event,
+        participants,
+      }),
+    [event, participants],
+  );
+  const currentParticipant =
+    localQualificationParticipantIndex !== null
+      ? qualificationParticipants[localQualificationParticipantIndex] ?? null
+      : null;
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
-  const participantA = participants.find(
-    participant => participant.id === activeBattle?.participantAId,
-  );
-  const participantB = participants.find(
-    participant => participant.id === activeBattle?.participantBId,
-  );
+  const battleParticipantRows = activeBattle
+    ? getBattleParticipantDisplayRows({
+        battle: activeBattle,
+        participants,
+        votes,
+      })
+    : [];
+  const participantA = battleParticipantRows[0]?.participant ?? undefined;
+  const participantB = battleParticipantRows[1]?.participant ?? undefined;
   const selfJudge = judges.find(judge => judge.id === selfJudgeId);
+  const displayRole = isHost ? 'host' : null;
   const existingScore =
     scores.find(
       score =>
@@ -68,6 +114,50 @@ export const HostLocalJudgeView: React.FC = () => {
     ) ?? null;
   const canActAsJudge = hasJudgeRole && selfJudgeId !== null;
   const isVotingOpen = activeBattle?.status === 'voting';
+  const canGoToPreviousLocalParticipant =
+    localQualificationParticipantIndex !== null &&
+    localQualificationParticipantIndex > 0;
+  const canGoToNextLocalParticipant =
+    localQualificationParticipantIndex !== null &&
+    localQualificationParticipantIndex < qualificationParticipants.length - 1;
+  const participantRows = qualificationParticipants.map((participant, index) => {
+    const judgeScore =
+      scores.find(
+        score =>
+          score.participantId === participant.id &&
+          score.judgeId === selfJudgeId,
+      )?.score ?? null;
+
+    return {
+      participant,
+      index,
+      judgeScore,
+      isCurrent: index === currentIndex,
+      isSelected: index === localQualificationParticipantIndex,
+      canOpen: index <= currentIndex,
+    };
+  });
+
+  useEffect(() => {
+    setLocalQualificationParticipantIndex(previousIndex => {
+      const initialIndex = getInitialLocalQualificationParticipantIndex({
+        currentIndex,
+        participants: qualificationParticipants,
+        scores,
+        judgeId: selfJudgeId,
+      });
+
+      if (
+        previousIndex === null ||
+        initialIndex === null ||
+        previousIndex >= qualificationParticipants.length
+      ) {
+        return initialIndex;
+      }
+
+      return previousIndex;
+    });
+  }, [currentIndex, qualificationParticipants, scores, selfJudgeId]);
 
   useEffect(() => {
     setSelectedScore(null);
@@ -129,7 +219,7 @@ export const HostLocalJudgeView: React.FC = () => {
             ? getJudgeDisplayName({
                 judgeId: selfJudge.id,
                 judgeName: selfJudge.name,
-                role,
+                role: displayRole,
                 selfJudgeId,
               })
             : 'Host'}
@@ -153,60 +243,186 @@ export const HostLocalJudgeView: React.FC = () => {
       )}
 
       {event.status === 'qualification' && currentParticipant ? (
-        <Box style={styles.card} p={20} gap={16}>
-          <Box gap={4}>
-            <Text variant="body2" color="primary">QUALIFICATION</Text>
-            <Text variant="h1">
-              #{String(currentParticipant.number).padStart(2, '0')}{' '}
-              {currentParticipant.name}
-            </Text>
+        <>
+          <Box style={styles.viewToggle} direction="row" mb={8}>
+            <TouchableOpacity
+              style={[
+                styles.viewToggleOption,
+                qualificationViewMode === 'score' && styles.viewToggleOptionActive,
+              ]}
+              onPress={() => setQualificationViewMode('score')}
+            >
+              <Text
+                variant="button"
+                color={qualificationViewMode === 'score' ? 'dark' : 'textSecondary'}
+              >
+                {getResource('judge_score_view')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.viewToggleOption,
+                qualificationViewMode === 'list' && styles.viewToggleOptionActive,
+              ]}
+              onPress={() => setQualificationViewMode('list')}
+            >
+              <Text
+                variant="button"
+                color={qualificationViewMode === 'list' ? 'dark' : 'textSecondary'}
+              >
+                {getResource('judge_list_view')}
+              </Text>
+            </TouchableOpacity>
           </Box>
 
-          <ScoreNumpad
-            selected={existingScore ?? selectedScore}
-            onSelect={setSelectedScore}
-            locked={!canActAsJudge || existingScore !== null}
-          />
+          <Box style={styles.card} p={20} gap={16}>
+            {qualificationViewMode === 'score' ? (
+              <>
+              <Box gap={4}>
+                <Box direction="row" align="center" gap={8}>
+                  <Text variant="body2" color="primary">QUALIFICATION</Text>
+                  {localQualificationParticipantIndex === currentIndex && (
+                    <Box style={styles.currentChip} px={8} py={3}>
+                      <Text variant="caption" color="primary">
+                        {getResource('judge_current_participant')}
+                      </Text>
+                    </Box>
+                  )}
+                </Box>
+                <Text variant="h1">
+                  #{String(currentParticipant.number).padStart(2, '0')}{' '}
+                  {currentParticipant.name}
+                </Text>
+              </Box>
 
-          <Button
-            disabled={
-              !canActAsJudge ||
-              selectedScore === null ||
-              existingScore !== null
-            }
-            onPress={handleSubmitScore}
-          >
-            {existingScore === null
-              ? 'SUBMIT LOCAL SCORE'
-              : `SCORE SUBMITTED: ${existingScore}/10`}
-          </Button>
+              <ScoreNumpad
+                selected={existingScore ?? selectedScore}
+                onSelect={setSelectedScore}
+                locked={!canActAsJudge || existingScore !== null}
+              />
 
-          <Button
-            variant="outlined"
-            color="secondary"
-            disabled={!canGoToNextQualificationParticipant()}
-            onPress={() => {
-              void goToNextQualificationParticipant();
-            }}
-          >
-            NEXT PARTICIPANT
-          </Button>
+              <Button
+                disabled={
+                  !canActAsJudge ||
+                  selectedScore === null ||
+                  existingScore !== null
+                }
+                onPress={handleSubmitScore}
+              >
+                {existingScore === null
+                  ? 'SUBMIT'
+                  : `${getResource('judge_score_submitted')}: ${existingScore}/10`}
+              </Button>
 
-          <Button
-            variant="outlined"
-            color="secondary"
-            disabled={!canFinishQualification()}
-            onPress={() => {
-              void finishQualification();
-            }}
-          >
-            FINISH QUALIFICATION
-          </Button>
-        </Box>
+              <Box direction="row" gap={8}>
+                <Box flex={1}>
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    disabled={!canGoToPreviousLocalParticipant}
+                    onPress={() => {
+                      setLocalQualificationParticipantIndex(previousIndex => {
+                        if (previousIndex === null) {
+                          return null;
+                        }
+
+                        return Math.max(previousIndex - 1, 0);
+                      });
+                    }}
+                  >
+                    {getResource('judge_previous_participant')}
+                  </Button>
+                </Box>
+
+                <Box flex={1}>
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    disabled={!canGoToNextLocalParticipant}
+                    onPress={() => {
+                      setLocalQualificationParticipantIndex(previousIndex => {
+                        if (previousIndex === null) {
+                          return null;
+                        }
+
+                        return Math.min(previousIndex + 1, participants.length - 1);
+                      });
+                    }}
+                  >
+                    {getResource('judge_next_participant')}
+                  </Button>
+                </Box>
+              </Box>
+              </>
+            ) : (
+              <Box gap={8}>
+                {participantRows.map((item) => (
+                  <TouchableOpacity
+                    key={item.participant.id}
+                    disabled={!item.canOpen}
+                    onPress={() => {
+                      setLocalQualificationParticipantIndex(item.index);
+                      setQualificationViewMode('score');
+                    }}
+                    style={[
+                      styles.participantRow,
+                      item.isSelected && styles.selectedParticipantRow,
+                      !item.canOpen && styles.disabledParticipantRow,
+                    ]}
+                  >
+                    <Box direction="row" align="center" gap={10} fullWidth>
+                      <Text
+                        variant="bodyBold"
+                        color={item.canOpen ? 'primary' : 'textSecondary'}
+                        style={styles.participantNumber}
+                      >
+                        #{String(item.participant.number).padStart(2, '0')}
+                      </Text>
+                      <Box flex={1} gap={4}>
+                        <Text
+                          variant="bodyBold"
+                          color={item.canOpen ? 'textPrimary' : 'textSecondary'}
+                          numberOfLines={1}
+                        >
+                          {item.participant.name}
+                        </Text>
+                        {item.isCurrent && (
+                          <Box style={styles.currentChipList} px={8} py={3}>
+                            <Text variant="caption" color="primary">
+                              {getResource('judge_current_participant')}
+                            </Text>
+                          </Box>
+                        )}
+                        {(item.participant.crew !== undefined ||
+                          item.participant.city !== undefined) && (
+                          <Text variant="body2" color="textSecondary" numberOfLines={1}>
+                            {[item.participant.crew, item.participant.city]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </Text>
+                        )}
+                      </Box>
+                      <Text
+                        variant="bodyBold"
+                        color={item.judgeScore === null ? 'textSecondary' : 'primary'}
+                        style={styles.scoreValue}
+                      >
+                        {item.judgeScore === null
+                          ? getResource('host_qualification_not_scored')
+                          : `${item.judgeScore}/10`}
+                      </Text>
+                    </Box>
+                  </TouchableOpacity>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </>
       ) : event.status === 'battle' &&
         activeBattle &&
         participantA &&
-        participantB ? (
+        participantB &&
+        battleParticipantRows.length >= 2 ? (
         <Box gap={16}>
           <DancerVoteCard
             participant={participantA}
@@ -215,7 +431,7 @@ export const HostLocalJudgeView: React.FC = () => {
             isSelected={pendingVote === participantA.id}
             onPress={() => setPendingVote(participantA.id)}
             disabled={!canActAsJudge || !isVotingOpen || existingVote !== null}
-            categoryTitle={event.categoryTitle}
+            categoryTitle={event.battleConfiguration?.categoryTitle ?? '—'}
           />
           <DancerVoteCard
             participant={participantB}
@@ -224,8 +440,27 @@ export const HostLocalJudgeView: React.FC = () => {
             isSelected={pendingVote === participantB.id}
             onPress={() => setPendingVote(participantB.id)}
             disabled={!canActAsJudge || !isVotingOpen || existingVote !== null}
-            categoryTitle={event.categoryTitle}
+            categoryTitle={event.battleConfiguration?.categoryTitle ?? '—'}
           />
+
+          {battleParticipantRows.slice(2).map((row, index) => (
+            row.participant !== null && (
+              <DancerVoteCard
+                key={row.participantId}
+                participant={row.participant}
+                label={`${getResource('judge_dancer_label')} ${index + 3}`}
+                accentColor={
+                  index % 2 === 0
+                    ? Colors.primary.main
+                    : Colors.secondary.dark
+                }
+                isSelected={pendingVote === row.participantId}
+                onPress={() => setPendingVote(row.participantId)}
+                disabled={!canActAsJudge || !isVotingOpen || existingVote !== null}
+                categoryTitle={event.battleConfiguration?.categoryTitle ?? 'â€”'}
+              />
+            )
+          ))}
 
           {activeBattle.status === 'active' && (
             <Box style={styles.notice} p={16}>
@@ -283,5 +518,57 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
+  },
+  viewToggle: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    padding: 4,
+  },
+  viewToggleOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
+  viewToggleOptionActive: {
+    backgroundColor: Colors.primary.main,
+  },
+  participantRow: {
+    backgroundColor: Colors.dark.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  selectedParticipantRow: {
+    borderColor: Colors.primary.main,
+  },
+  disabledParticipantRow: {
+    opacity: 0.45,
+  },
+  participantNumber: {
+    width: 44,
+  },
+  currentChip: {
+    backgroundColor: Colors.primary.subtleAlt,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+    alignSelf: 'flex-start',
+  },
+  currentChipList: {
+    backgroundColor: Colors.primary.subtleAlt,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+    alignSelf: 'flex-start',
+  },
+  scoreValue: {
+    minWidth: 86,
+    textAlign: 'right',
   },
 });

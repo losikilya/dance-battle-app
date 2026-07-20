@@ -15,15 +15,14 @@ export const ConnectionLostScreen: React.FC = () => {
   const reconnectAttempts = useJudgingClientStore(s => s.reconnectAttempts);
   const host = useJudgingClientStore(s => s.host);
   const port = useJudgingClientStore(s => s.port);
-  const role = useJudgingClientStore(s => s.role);
   const name = useJudgingClientStore(s => s.name);
   const lastError = useJudgingClientStore(s => s.lastError);
   const connectToHost = useJudgingClientStore(s => s.connectToHost);
   const disconnect = useJudgingClientStore(s => s.disconnect);
 
   const handleRetry = () => {
-    if (!host || !port || !role) return;
-    connectToHost({ host, port, role, name: name ?? undefined });
+    if (!host || !port) return;
+    connectToHost({ host, port, role: 'spectator', name: name ?? undefined });
   };
 
   const handleNetworkSettings = () => {

@@ -2,7 +2,7 @@ import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Alert } from 'react-native';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useBattleState } from '@stores/battle/useBattleState';
 import { BracketScreen } from '@screens/BracketScreen';
 import { RankingsScreen } from '@screens/RankingsScreen';
 import { Box, Text, Button } from '@components';
@@ -68,11 +68,29 @@ function BracketsEmptyState(): React.JSX.Element {
   );
 }
 
+function RemoteBracketsWaitingState(): React.JSX.Element {
+  return (
+    <Box fullHeight color={Colors.dark.background} align="center" justify="center" px={24} gap={8}>
+      <Text variant="bodyBold" centered>
+        {getResource('connection_waiting_assignment_title')}
+      </Text>
+      <Text variant="body2" color="textSecondary" centered>
+        {getResource('bracket_placeholder')}
+      </Text>
+    </Box>
+  );
+}
+
 export default function BracketsTab(): React.JSX.Element {
-  const eventStatus = useDemoBattleStore(s => s.event.status);
-  const participants = useDemoBattleStore(s => s.participants);
+  const { state, isHost } = useBattleState();
+  const eventStatus = state?.event.status ?? 'draft';
+  const participants = state?.participants ?? [];
 
   if (participants.length === 0) {
+    if (!isHost) {
+      return <RemoteBracketsWaitingState />;
+    }
+
     return <BracketsEmptyState />;
   }
 

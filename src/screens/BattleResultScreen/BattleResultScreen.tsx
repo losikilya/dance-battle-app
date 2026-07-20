@@ -5,9 +5,14 @@ import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
+import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
+import {
+  getBattleParticipantDisplayRows,
+  getBattleParticipantIds,
+} from '@screens/shared/battleDisplay';
 import { DancerCard } from './DancerCard';
 import { JudgeVerdictRow } from './JudgeVerdictRow';
 
@@ -15,7 +20,10 @@ export const BattleResultScreen: React.FC = () => {
   const router = useRouter();
   const { battleId } = useLocalSearchParams<{ battleId: string }>();
   const { state, isHost } = useBattleState();
-  const role = useSessionStore(s => s.role);
+  const assignedClientRole = useJudgingClientStore(s => s.role);
+  const role = useSessionStore(s =>
+    assignedClientRole ?? (s.roles.includes('host') ? 'host' : 'spectator'),
+  );
   const selfJudgeId = useSessionStore(s => s.selfJudgeId);
   const broadcastState = useJudgingServerStore(s => s.broadcastState);
 
@@ -35,17 +43,15 @@ export const BattleResultScreen: React.FC = () => {
   }
 
   const votes = allVotes.filter(v => v.battleId === battleId);
-  const getParticipantName = (id: string) =>
-    participants.find(p => p.id === id)?.name ?? 'Unknown';
-
-  const winner = participants.find(p => p.id === battle.winnerId);
-  const loserId = battle.participantAId === battle.winnerId
-    ? battle.participantBId
-    : battle.participantAId;
-  const loser = participants.find(p => p.id === loserId);
-
-  const votesForWinner = votes.filter(v => v.winnerId === battle.winnerId).length;
-  const votesForLoser = votes.length - votesForWinner;
+  const battleParticipantIds = getBattleParticipantIds(battle);
+  const participantRows = getBattleParticipantDisplayRows({
+    battle,
+    participants,
+    votes,
+  });
+  const winnerRow = participantRows.find(row => row.isWinner) ?? null;
+  const otherRows = participantRows.filter(row => !row.isWinner);
+  const voteSummary = participantRows.map(row => row.voteCount).join('-');
 
   return (
     <ScrollView
@@ -58,25 +64,37 @@ export const BattleResultScreen: React.FC = () => {
           <Box style={styles.greenDot} />
           <Text variant="bodyBold" color="primary">{getResource('result_complete')}</Text>
         </Box>
-        <Text variant="h2">{getResource('result_winner_prefix')} {getParticipantName(battle.winnerId)}</Text>
+        <Text variant="h2">
+          {getResource('result_winner_prefix')} {winnerRow?.name ?? 'Unknown'}
+        </Text>
         <Box style={styles.voteChip} px={20} py={8}>
           <Text variant="h2" color="dark">
-            {getResource('result_vote_prefix')} {votesForWinner}-{votesForLoser}
+            {getResource('result_vote_prefix')} {voteSummary}
           </Text>
         </Box>
       </Box>
 
-      {winner !== undefined && (
+      {winnerRow !== null && (
         <Box mb={16}>
-          <DancerCard participant={winner} isWinner />
+          <DancerCard
+            participant={winnerRow.participant}
+            isWinner
+            voteCount={winnerRow.voteCount}
+            fallbackName={winnerRow.name}
+          />
         </Box>
       )}
 
-      {loser !== undefined && (
-        <Box mb={24}>
-          <DancerCard participant={loser} isWinner={false} />
+      {otherRows.map((row) => (
+        <Box key={row.participantId} mb={16}>
+          <DancerCard
+            participant={row.participant}
+            isWinner={false}
+            voteCount={row.voteCount}
+            fallbackName={row.name}
+          />
         </Box>
-      )}
+      ))}
 
       <Box mb={24}>
         <Box mb={8}>
@@ -97,7 +115,7 @@ export const BattleResultScreen: React.FC = () => {
                 selfJudgeId,
               })}
               vote={vote}
-              participantAId={battle.participantAId}
+              participantIds={battleParticipantIds}
             />
           );
         })}

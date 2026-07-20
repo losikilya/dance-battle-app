@@ -1,5 +1,5 @@
 import { Battle, BattleVote } from '../battle/types';
-import { DanceEvent } from '../event/types';
+import { BattleConfiguration, DanceEvent } from '../event/types';
 import { Judge } from '../judge/types';
 import { Participant, CheckInStatus } from '../participant/types';
 import {
@@ -33,6 +33,7 @@ export type QualificationFinishedEvent = AppEventMeta & {
 export type BracketGeneratedEvent = AppEventMeta & {
   type: 'bracket.generated';
   payload: {
+    format: BattleConfiguration['format'];
     battles: Battle[];
   };
 };
@@ -91,6 +92,15 @@ export type QualificationParticipantAdvancedEvent = AppEventMeta & {
   };
 };
 
+export type QualificationParticipantMovedToEndEvent = AppEventMeta & {
+  type: 'qualification.participantMovedToEnd';
+  payload: {
+    participantId: string;
+    participantIndex: number;
+    timer: QualificationTimerState;
+  };
+};
+
 export type QualificationTimerPausedEvent = AppEventMeta & {
   type: 'qualification.timerPaused';
   payload: {
@@ -123,7 +133,57 @@ export type EventCreatedEvent = AppEventMeta & {
   type: 'event.created';
   payload: {
     event: DanceEvent;
-    judges: Judge[];
+  };
+};
+
+export type EventFinishedEvent = AppEventMeta & {
+  type: 'event.finished';
+  payload: Record<string, never>;
+};
+
+export type BattleConfiguredEvent = AppEventMeta & {
+  type: 'battle.configured';
+  payload: {
+    configuration: BattleConfiguration;
+  };
+};
+
+export type BattleJudgeAssignedEvent = AppEventMeta & {
+  type: 'battle.judgeAssigned';
+  payload: {
+    battleConfigurationId: string;
+    judge: Judge;
+  };
+};
+
+export type BattleJudgeUnassignedEvent = AppEventMeta & {
+  type: 'battle.judgeUnassigned';
+  payload: {
+    battleConfigurationId: string;
+    judgeId: string;
+    deviceId: string;
+  };
+};
+
+export type BattleJudgeRenamedEvent = AppEventMeta & {
+  type: 'battle.judgeRenamed';
+  payload: {
+    judgeId: string;
+    name: string;
+  };
+};
+
+export type BattleConfigurationSelectedEvent = AppEventMeta & {
+  type: 'battle.configurationSelected';
+  payload: {
+    battleConfigurationId: string;
+  };
+};
+
+export type BattleConfigurationDeletedEvent = AppEventMeta & {
+  type: 'battle.configurationDeleted';
+  payload: {
+    battleConfigurationId: string;
   };
 };
 
@@ -157,11 +217,19 @@ export type AppEvent =
   | EventResetEvent
   | QualificationParticipantChangedEvent
   | QualificationParticipantAdvancedEvent
+  | QualificationParticipantMovedToEndEvent
   | QualificationTimerPausedEvent
   | QualificationTimerResumedEvent
   | QualificationTimerRestartedEvent
   | QualificationTimerExpiredEvent
   | EventCreatedEvent
+  | EventFinishedEvent
+  | BattleConfiguredEvent
+  | BattleJudgeAssignedEvent
+  | BattleJudgeUnassignedEvent
+  | BattleJudgeRenamedEvent
+  | BattleConfigurationSelectedEvent
+  | BattleConfigurationDeletedEvent
   | ParticipantAddedEvent
   | ParticipantRemovedEvent
   | ParticipantCheckInToggledEvent;

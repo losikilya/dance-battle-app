@@ -1,14 +1,15 @@
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
+import { getResource } from '@resources';
 import type { AppRole } from '@domain/role/types';
 import { useSessionStore } from '@stores/session/useSessionStore';
 
 const VIEW_OPTIONS: Array<{ role: AppRole; label: string }> = [
-  { role: 'host', label: 'HOST CONTROL' },
-  { role: 'mc', label: 'MC VIEW' },
-  { role: 'judge', label: 'JUDGE VIEW' },
-  { role: 'spectator', label: 'SPECTATOR VIEW' },
+  { role: 'host', label: getResource('dashboard_view_host') },
+  { role: 'mc', label: getResource('dashboard_view_mc') },
+  { role: 'judge', label: getResource('dashboard_view_judge') },
+  { role: 'spectator', label: getResource('dashboard_view_spectator') },
 ];
 
 export const HostViewSwitcher: React.FC = () => {

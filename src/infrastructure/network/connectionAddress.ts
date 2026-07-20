@@ -13,7 +13,8 @@ export type ParsedHostAddress = {
 export type HostAddressSource =
   | 'expo-network'
   | 'android-interface'
-  | 'manual-override';
+  | 'manual-override'
+  | 'self-localhost';
 
 export type HostAddressCandidate = {
   host: string;

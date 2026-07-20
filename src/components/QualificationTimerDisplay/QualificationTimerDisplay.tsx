@@ -83,6 +83,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border.subtle,
     padding: 16,
     gap: 4,
+    alignItems: 'center',
   },
   warningRoot: {
     borderColor: Colors.status.warning,

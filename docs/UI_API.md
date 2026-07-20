@@ -51,6 +51,33 @@ Create Event UI also collects `qualificationDurationSeconds` and
 `qualificationAdvanceMode`. Duration should be validated as a positive
 reasonable integer before calling `createEvent(params)`.
 
+### Session Reset and Host Guards
+
+Routes that create or configure Host-owned event state are Host-only:
+
+- `/create-event`
+- `/configure-battle`
+
+The route wrapper must check session state before rendering the screen. Users
+with no role are redirected to discovery. Remote or non-Host users are
+redirected to the main tabs. Direct route navigation must not call
+`setRole('host')` or otherwise grant Host access.
+
+Exit and reset flows should use the centralized app session cleanup helper
+instead of calling `setRole(null)` directly. Cleanup order is:
+
+1. Stop the Host TCP server.
+2. Disconnect/reset the Judging client connection target and synced state.
+3. Clear session roles, active view, self Judge identity, Judge ID, and Judge
+   name.
+
+`AppBootstrap` also protects future reset paths: the Host server may run only
+in local Host mode, which means the session has the Host role and the Judging
+client does not have an assigned remote role. If an impossible mixed state
+appears, the server is stopped instead of started. When the session has no
+roles, stale Judging client state is cleared. Active remote client sessions are
+not disconnected while a role remains selected.
+
 ## Host Battle Store
 
 Import:
@@ -104,6 +131,8 @@ Actions:
 - `resumeQualificationTimer()`
 - `restartQualificationTimer()`
 - `advanceQualificationParticipant()`
+- `markCurrentParticipantAbsent()`
+- `moveCurrentParticipantToEnd()`
 - `submitQualificationScore({ participantId, judgeId, score })`
 - `goToNextQualificationParticipant()`
 - `finishQualification()`
@@ -170,9 +199,43 @@ MC timer controls use the public timer actions:
 - Remote MC reads `useJudgingClientStore` synced state and calls the matching
   client actions.
 - The Host server permits MC clients to send only timer pause, timer resume,
-  timer restart, and participant advance commands.
-- MC Next is shown only in manual qualification mode. Automatic mode follows
-  the Host timer coordinator.
+  timer restart, participant advance, participant absent, participant late, and
+  qualification finish commands.
+- MC Next is available in manual and automatic qualification modes. Automatic
+  mode still follows the Host timer coordinator when the timer expires.
+- MC controls use icon buttons: pause uses `pause`, resume/start uses `play`,
+  restart uses `reload-outline`, next uses `play-forward-outline`, late uses
+  `bed`, and absent uses `trash-outline`.
+- Next and Late are disabled for the last participant. Absent remains available
+  for the last participant. Absent, Late, and Next are disabled when
+  qualification is not active or no current participant exists.
+MC clients cannot generate brackets, start battles, open voting, submit battle
+votes, configure battles, manage participants, or finish the whole event.
+The remote client store does not expose a public bracket generation action;
+bracket generation is Host-only and the Host server still rejects
+`bracket.generate` from MC clients.
+
+`markCurrentParticipantAbsent()` marks the Host-current qualification
+participant absent by creating a `0` qualification score for every Judge
+assigned to the active battle configuration. Existing partial scores for that
+participant are overwritten to `0` during replay because
+`qualification.scoreSubmitted` is unique by participant and judge. Normal Judge
+score submission still validates `1..10`; only the MC/Host absent command can
+create score `0`. The participant is considered complete for
+`qualification.finish`, but the command does not auto-advance or reset the
+timer.
+
+`moveCurrentParticipantToEnd()` moves the Host-current qualification
+participant to the end of the active present participant order, preserves the
+participant ID and any existing scores, keeps the current index pointed at the
+next participant that slides into that slot, and restarts the qualification
+timer for that new current participant. The command is rejected for the last
+participant.
+
+Both absent and late commands carry `{ participantId }`. The Host command
+handler resolves the authoritative current qualification participant and
+rejects the command if the payload ID no longer matches. This prevents stale
+remote MC screens from applying absent or late to the wrong participant.
 
 ### Battle Lifecycle
 
@@ -184,6 +247,48 @@ The Host controls battle voting in two explicit steps:
 Judge UI may call `submitBattleVote({ battleId, winnerId })` only while the
 synced battle status is `voting`. An `active` battle is visible to Judges, but
 voting remains locked until the Host opens it.
+
+### Destructive Data Guards
+
+Battle configuration deletion is allowed only while the configuration is still
+draft and has no scores, battles, votes, or active qualification timer state.
+Deleting the selected draft configuration must leave the app on another safe
+configuration or with no active configuration; `activeBattleConfigurationId`
+must never point at a deleted configuration.
+
+Battle configuration selection rejects missing configurations and should not
+switch away from or into a configuration while qualification or battles are in
+progress. Screens should not rely on selection to mix scores or battles across
+configurations.
+
+Participant add, import, remove, and check-in changes are draft-only for the
+target battle configuration. Once qualification starts for that configuration,
+participant list and presence changes are rejected. Participant numbers and
+case-insensitive names must be unique inside the configuration. Imports target
+one configuration, trim names, reject empty names and invalid numbers, and
+store each imported participant with the target `battleConfigurationId`.
+
+Bracket generation is allowed only after qualification is finished, before a
+bracket exists for the active configuration. `participantIds` must be unique,
+must exist in the active configuration's qualification ranking, and must use a
+valid MVP size. If the configuration has an explicit format such as `top8`,
+`top16`, or `top32`, the selected participant count must match that format.
+
+Qualification finish checks the active configuration only. It requires every
+present active participant to have one score from every assigned active Judge,
+so legacy or out-of-scope scores cannot satisfy missing required scores.
+
+Event finish is rejected from draft, qualification, and
+qualification-finished states. It is also rejected while any battle is active,
+voting, pending, or missing a winner. A started configuration must have a final
+battle result before the event can finish.
+
+Legacy local records without `battleConfigurationId` are still treated as part
+of the active configuration by compatibility helpers. This keeps old local
+event logs readable, but it can make legacy unscoped scores, battles, or votes
+block destructive operations. If legacy data causes confusing guards during MVP
+testing, prefer an explicit local reset/migration path over silently ignoring
+unscoped records.
 
 ### Host Self-Run Views
 
@@ -296,6 +401,7 @@ State:
 
 Actions:
 
+- `hydrateDeviceId()`
 - `connectToHost({ host, port, role, name?, requestedJudgeId? })`
 - `disconnect()`
 - `submitCurrentQualificationScore(score)`
@@ -304,6 +410,8 @@ Actions:
 - `resumeQualificationTimer()`
 - `restartQualificationTimer()`
 - `advanceQualificationParticipant()`
+- `markCurrentParticipantAbsent()`
+- `moveCurrentParticipantToEnd()`
 - `requestSnapshot()`
 
 Selectors:
@@ -314,6 +422,33 @@ Selectors:
 
 Compatibility actions `connect`, `sendScore`, and `sendVote` remain available
 for existing screens. New UI should prefer the public actions above.
+
+`disconnect()` and `resetConnectionTarget()` must clear stale connection
+identity and target fields: `host`, `port`, `serverAddress`, `role`, `name`,
+`requestedJudgeId`, assigned Judge fields, `syncedState`, pending address, and
+reconnect/error metadata. Stale client role state must not drive the next
+session after an exit or reset.
+
+`deviceId` is a stable, app-local remote client identity. It is generated once
+with the existing `device_*` ID format and persisted in SQLite metadata. It must
+not come from personally sensitive platform identifiers. Connect and reconnect
+paths should load this persisted ID before sending `join`.
+
+Remote permissions come from the Host `joined.assignedRole` response. Clients
+may send the existing single `join.role` as `spectator`, but Judge and MC UI
+must trust only the Host-assigned role received in `joined`; local `roles[]`
+does not grant remote Judge or MC permissions. Local `roles[]` remains
+Host/self-run presentation state. A successful `joined` message updates the
+assigned role, assigned Judge ID/name, snapshot, and clears reconnect/command
+errors.
+
+Reconnect reuses the stable `deviceId`, last Host address, display name, and
+requested Judge ID. While the Host app/server remains alive, the server matches
+the stable `deviceId` to the existing connected-client record and preserves the
+latest assigned role and Judge ID. If the Host app restarts or otherwise loses
+its connected-client assignment table, the reconnecting client rejoins as
+Spectator and should show a waiting-for-Host-assignment state instead of acting
+as Judge or MC.
 
 `submitCurrentQualificationScore(score)` resolves both the assigned judge and
 the oldest participant up to the current Host participant that this Judge has
@@ -387,6 +522,49 @@ client role is already selected, or stores the parsed `host:port` as the
 prefilled manual address so the user can explicitly connect after selecting a
 role. Invalid QR data should show an error.
 
+On Host join, the server identifies remote devices by stable `deviceId`. A new
+socket for the same `deviceId` replaces the old socket and updates the existing
+visible client row instead of creating a duplicate row. The server preserves the
+current assigned role and assigned Judge ID for that `deviceId` while its
+in-memory connected-client state is alive.
+
+The MC server allowlist is authoritative. MC may send only:
+
+- `qualification.timer.pause`
+- `qualification.timer.resume`
+- `qualification.timer.restart`
+- `qualification.advanceParticipant`
+- `qualification.finish`
+
+MC must be rejected for `bracket.generate`, battle start/open voting, Judge
+vote commands, event finish, participant/admin commands, and battle
+configuration commands.
+
+## Shared Battle Screens
+
+Shared Bracket, Ranking, and Battle Result screens choose their state source
+through `useBattleState()`:
+
+- Host source uses `useDemoBattleStore` and may show Host-only controls.
+- Remote source uses `useJudgingClientStore.syncedState` and is read-only.
+- Remote empty/missing synced state should show a waiting/connection state, not
+  Host participant import or add CTAs.
+
+Host-only bracket controls include bracket generation, next-round generation,
+start battle, open voting, mock votes, and manual result broadcast/recovery.
+Remote Judge, MC, and Spectator users can view brackets, rankings, and results
+from synced state only.
+
+`BattleCard` is presentational. It receives participant/vote data from the
+visible battle state and remains read-only unless the Host parent passes
+explicit capability flags and callbacks such as start battle, open voting, or
+mock vote submission. Remote parents pass no Host callbacks.
+
+Battle display components should prefer `battle.participantIds` and render all
+participants with per-participant vote counts. The legacy
+`participantAId`/`participantBId` fields are display fallbacks for older 1v1
+battle records, not the primary UI model.
+
 Manual address entry uses the same parser as legacy QR data. It trims
 whitespace, accepts IPv4 addresses or hostnames, requires a port from `1` to
 `65535`, and rejects `0.0.0.0`, `127.*`, and `localhost`.
@@ -400,6 +578,31 @@ app, for example:
 ```bash
 npm run android
 ```
+
+## Web Preview
+
+Expo Web is supported only as a development screen preview mode for visual UI
+testing:
+
+```bash
+npm run web
+```
+
+On web, `AppBootstrap` still hydrates the local Host battle store, but it skips
+Judging client device hydration, TCP Host server startup/shutdown, native
+network address discovery, and stale TCP client cleanup. Native Android/iOS
+bootstrap behavior is unchanged.
+
+The web build uses platform-specific no-op Judging client/server stores. TCP
+server, TCP client connection, Host address discovery, QR/local network join,
+remote command sending, and state broadcast are intentionally disabled on web.
+Host event creation and local Host screens can use the web in-memory event log
+for preview data; this data is not SQLite-backed.
+
+In web development mode, selecting Judge, MC, or Spectator from role selection
+creates a local preview assignment without a network connection. Remote preview
+screens render their waiting/empty states unless a real synced Host snapshot is
+available in native builds.
 
 The Judge selectors read only from `syncedState`. They return `null` when there
 is no current participant or active battle. `getParticipantName(...)` returns
@@ -441,8 +644,10 @@ submitScore(8);
 
 ## Screen Ownership
 
-- Host dashboard, participants, qualification administration, rankings,
-  brackets, and results use `useDemoBattleStore`.
+- Host dashboard, participants, and qualification administration use
+  `useDemoBattleStore`.
+- Shared rankings, brackets, and results use `useBattleState()` so Host reads
+  `useDemoBattleStore` and remote clients read synced state.
 - Host server status, QR/manual connection details, and connected-device lists
   use `useJudgingServerStore`.
 - Judge connection, qualification scoring, battle voting, and remote read-only

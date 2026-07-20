@@ -1,39 +1,52 @@
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Box, Text, Button, QualificationTimerDisplay } from '@components';
-import Colors from '@constants/Colors';
-import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
-import { getResource } from '@resources';
-import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
-import { calculateRanking } from '@domain/qualification/calculateRanking';
-import type { RankedParticipant } from '@domain/qualification/types';
+import { useMemo } from "react";
+import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Box, Text, Button, QualificationTimerDisplay } from "@components";
+import Colors from "@constants/Colors";
+import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
+import { getResource } from "@resources";
+import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
+import { calculateRanking } from "@domain/qualification/calculateRanking";
+import { getQualificationParticipants } from "@domain/sync/stateSelectors";
+import type { RankedParticipant } from "@domain/qualification/types";
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: 'DRAFT',
-  qualification: 'QUALIFICATION',
-  qualification_finished: 'RANKING',
-  battle: 'BATTLES',
-  finished: 'FINISHED',
+  draft: "DRAFT",
+  qualification: "QUALIFICATION",
+  qualification_finished: "RANKING",
+  battle: "BATTLES",
+  finished: "FINISHED",
 };
 
 export const MCDashboardScreen: React.FC = () => {
-  const router = useRouter();
-  const syncedState = useJudgingClientStore(s => s.syncedState);
+  const syncedState = useJudgingClientStore((s) => s.syncedState);
+  const lastError = useJudgingClientStore((s) => s.lastError);
   const pauseQualificationTimer = useJudgingClientStore(
-    s => s.pauseQualificationTimer,
+    (s) => s.pauseQualificationTimer,
   );
   const resumeQualificationTimer = useJudgingClientStore(
-    s => s.resumeQualificationTimer,
+    (s) => s.resumeQualificationTimer,
   );
   const restartQualificationTimer = useJudgingClientStore(
-    s => s.restartQualificationTimer,
+    (s) => s.restartQualificationTimer,
   );
   const advanceQualificationParticipant = useJudgingClientStore(
-    s => s.advanceQualificationParticipant,
+    (s) => s.advanceQualificationParticipant,
+  );
+  const markCurrentParticipantAbsent = useJudgingClientStore(
+    (s) => s.markCurrentParticipantAbsent,
+  );
+  const moveCurrentParticipantToEnd = useJudgingClientStore(
+    (s) => s.moveCurrentParticipantToEnd,
+  );
+  const finishQualification = useJudgingClientStore(
+    (s) => s.finishQualification,
   );
 
-  const participants = syncedState?.participants ?? [];
+  const allParticipants = syncedState?.participants ?? [];
+  const participants = syncedState
+    ? getQualificationParticipants(syncedState)
+    : [];
   const scores = syncedState?.scores ?? [];
   const ranking = useMemo(
     () => calculateRanking({ participants, scores }),
@@ -45,11 +58,27 @@ export const MCDashboardScreen: React.FC = () => {
   const nextParticipant = participants[idx + 1] ?? null;
   const total = participants.length;
   const progress = total > 0 ? (idx + 1) / total : 0;
-  const eventStatus = syncedState?.event.status ?? 'draft';
+  const eventStatus = syncedState?.event.status ?? "draft";
   const qualificationTimer = syncedState?.qualificationTimer ?? null;
   const event = syncedState?.event ?? null;
   const top8 = ranking.slice(0, 8);
-  const isManualMode = event?.qualificationAdvanceMode === 'manual';
+  const isQualificationActive =
+    eventStatus === "qualification" && currentParticipant !== null;
+  const isLastParticipant = idx >= participants.length - 1;
+  const timerToggleIcon =
+    qualificationTimer?.status === "running" ? "pause" : "play";
+  const canToggleTimer =
+    qualificationTimer?.status === "running" ||
+    qualificationTimer?.status === "paused";
+  const canFinishQualification =
+    eventStatus === "qualification" &&
+    participants.length > 0 &&
+    (syncedState?.judges.length ?? 0) > 0 &&
+    judgesHaveSubmittedAllScores({
+      judgesCount: syncedState?.judges.length ?? 0,
+      participantsCount: participants.length,
+      scoresCount: scores.length,
+    });
 
   return (
     <ScrollView
@@ -60,105 +89,135 @@ export const MCDashboardScreen: React.FC = () => {
       <Box direction="row" align="center" gap={8} mb={4}>
         <Box style={styles.greenDot} />
         <Text variant="body2" style={styles.liveText}>
-          {getResource('mc_live_event')}
+          {getResource("mc_live_event")}
         </Text>
       </Box>
+      {lastError !== null && (
+        <Box style={styles.noticeCard} p={12} mb={12}>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource("connection_remote_error_prefix")}: {lastError}
+          </Text>
+        </Box>
+      )}
       <Box mb={4}>
         <Text variant="body2" color="textSecondary">
-          {getResource('mc_stage_prefix')} {STATUS_LABELS[eventStatus] ?? eventStatus}
+          {getResource("mc_stage_prefix")}{" "}
+          {STATUS_LABELS[eventStatus] ?? eventStatus}
         </Text>
       </Box>
 
       <Box direction="row" justify="space-between" align="center" mb={4}>
-        <Text variant="body2" color="textSecondary">{getResource('mc_progress_label')}</Text>
-        <Text variant="body2" color="textSecondary">{idx + 1} / {total}</Text>
+        <Text variant="body2" color="textSecondary">
+          {getResource("mc_progress_label")}
+        </Text>
+        <Text variant="body2" color="textSecondary">
+          {idx + 1} / {total}
+        </Text>
       </Box>
       <Box style={styles.progressTrack} mb={24}>
-        <Box style={{ ...styles.progressFill, width: `${progress * 100}%` as `${number}%` }} />
+        <Box
+          style={{
+            ...styles.progressFill,
+            width: `${progress * 100}%` as `${number}%`,
+          }}
+        />
       </Box>
 
       {currentParticipant !== null && (
         <Box style={styles.heroCard} mb={16}>
           <Box style={styles.photoPlaceholder} align="center" justify="center">
-            <Text variant="body2" color="textSecondary">{getResource('mc_photo_placeholder')}</Text>
+            <Text variant="body2" color="textSecondary">
+              {getResource("mc_photo_placeholder")}
+            </Text>
           </Box>
           <Box p={16} gap={8}>
             <Box style={styles.nowDancingChip} px={12} py={4}>
               <Text variant="body2" style={styles.nowDancingText}>
-                {getResource('mc_now_dancing')}
+                {getResource("mc_now_dancing")}
               </Text>
             </Box>
             <Text variant="h1">
-              #{String(currentParticipant.number).padStart(2, '0')} {currentParticipant.name}
+              #{String(currentParticipant.number).padStart(2, "0")}{" "}
+              {currentParticipant.name}
             </Text>
             <Text variant="body2" color="primary">
-              {syncedState?.event.categoryTitle ?? '—'} / {currentParticipant.city}
+              {syncedState?.event.battleConfiguration?.categoryTitle ?? "—"} /{" "}
+              {currentParticipant.city}
             </Text>
 
             <Box direction="row" gap={1} mt={8}>
               <Box style={styles.statBox} align="center" gap={4} flex={1}>
-                <Text variant="body2" color="textSecondary">{getResource('mc_remaining')}</Text>
-                <Text variant="bodyBold">
-                  {qualificationTimer?.status.toUpperCase() ?? 'READY'}
+                <Text variant="body2" color="textSecondary">
+                  {getResource("mc_remaining")}
                 </Text>
-              </Box>
-              <Box style={styles.statDivider} />
-              <Box style={styles.statBox} align="center" gap={4} flex={1}>
-                <Text variant="body2" color="textSecondary">{getResource('mc_stamina')}</Text>
-                <Text variant="bodyBold" style={styles.liveText}>92%</Text>
-              </Box>
-              <Box style={styles.statDivider} />
-              <Box style={styles.statBox} align="center" gap={4} flex={1}>
-                <Text variant="body2" color="textSecondary">{getResource('mc_bpm')}</Text>
-                <Text variant="bodyBold" color="primary">128</Text>
+                <Text variant="bodyBold">
+                  {qualificationTimer?.status.toUpperCase() ?? "READY"}
+                </Text>
               </Box>
             </Box>
           </Box>
         </Box>
       )}
 
-      {eventStatus === 'qualification' && qualificationTimer && event && (
+      {eventStatus === "qualification" && qualificationTimer && event && (
         <Box style={styles.timerCard} p={16} gap={12} mb={24}>
           <QualificationTimerDisplay
             timer={qualificationTimer}
-            durationSeconds={event.qualificationDurationSeconds}
+            durationSeconds={
+              event.battleConfiguration?.qualificationDurationSeconds ?? 60
+            }
           />
-          <Box direction="row" gap={8}>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={
-                  qualificationTimer.status === 'paused'
-                    ? resumeQualificationTimer
-                    : pauseQualificationTimer
-                }
-                disabled={
-                  qualificationTimer.status !== 'running' &&
-                  qualificationTimer.status !== 'paused'
-                }
-              >
-                {qualificationTimer.status === 'paused' ? 'RESUME' : 'PAUSE'}
-              </Button>
-            </Box>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={restartQualificationTimer}
-              >
-                RESTART
-              </Button>
-            </Box>
+          <Box direction="row" justify="space-between" align="center" gap={12}>
+            <MCIconButton
+              icon="bed"
+              accessibilityLabel={getResource("mc_action_late")}
+              disabled={!isQualificationActive || isLastParticipant}
+              onPress={moveCurrentParticipantToEnd}
+              variant="secondary"
+            />
+            <MCIconButton
+              icon="trash-outline"
+              accessibilityLabel={getResource("mc_action_absent")}
+              disabled={!isQualificationActive}
+              onPress={markCurrentParticipantAbsent}
+              variant="secondary"
+            />
           </Box>
-          {isManualMode && (
-            <Button
-              variant="outlined"
-              color="secondary"
+          <Box direction="row" justify="center" align="center" gap={24}>
+            <MCIconButton
+              icon="reload-outline"
+              accessibilityLabel={getResource("mc_action_restart")}
+              disabled={!isQualificationActive}
+              onPress={restartQualificationTimer}
+            />
+            <MCIconButton
+              icon={timerToggleIcon}
+              accessibilityLabel={
+                qualificationTimer.status === "paused"
+                  ? getResource("mc_action_resume")
+                  : getResource("mc_action_pause")
+              }
+              disabled={!canToggleTimer}
+              onPress={
+                qualificationTimer.status === "paused"
+                  ? resumeQualificationTimer
+                  : pauseQualificationTimer
+              }
+            />
+            <MCIconButton
+              icon="play-forward-outline"
+              accessibilityLabel={getResource("mc_action_next")}
+              disabled={!isQualificationActive || isLastParticipant}
               onPress={advanceQualificationParticipant}
-              disabled={idx >= participants.length - 1}
+            />
+          </Box>
+          {canFinishQualification && (
+            <Button
+              variant="contained"
+              color="primary"
+              onPress={finishQualification}
             >
-              NEXT PARTICIPANT
+              {getResource("host_qualification_finish")}
             </Button>
           )}
         </Box>
@@ -174,51 +233,92 @@ export const MCDashboardScreen: React.FC = () => {
             </Box>
             <Box gap={2}>
               <Text variant="body2" color="textSecondary">
-                {getResource('mc_next_up')}
+                {getResource("mc_next_up")}
               </Text>
               <Text variant="bodyBold">
-                #{String(nextParticipant.number).padStart(2, '0')} {nextParticipant.name}
+                #{String(nextParticipant.number).padStart(2, "0")}{" "}
+                {nextParticipant.name}
               </Text>
             </Box>
           </Box>
-          <Button variant="outlined" color="secondary" onPress={() => {}}>
-            {getResource('mc_prepare_deck')}
-          </Button>
         </Box>
       )}
 
       <Box direction="row" justify="space-between" align="center" mb={12}>
-        <Text variant="bodyBold">{getResource('mc_top8_title')}</Text>
+        <Text variant="bodyBold">{getResource("mc_top8_title")}</Text>
       </Box>
 
       {top8.map((item: RankedParticipant) => {
-        const participant = participants.find(p => p.id === item.participantId);
+        const participant = allParticipants.find(
+          (p) => p.id === item.participantId,
+        );
         return (
-          <Box key={item.participantId} style={styles.rankRow} px={12} py={10} mb={4} direction="row" align="center" gap={12}>
+          <Box
+            key={item.participantId}
+            style={styles.rankRow}
+            px={12}
+            py={10}
+            mb={4}
+            direction="row"
+            align="center"
+            gap={12}
+          >
             <Text variant="bodyBold" color="primary" style={styles.rankNumber}>
-              {String(item.rank).padStart(2, '0')}
+              {String(item.rank).padStart(2, "0")}
             </Text>
             <Box flex={1} gap={2}>
-              <Text variant="bodyBold">{participant?.name ?? '—'}</Text>
-              <Text variant="body2" color="textSecondary">{getResource('mc_tech_art_placeholder')}</Text>
+              <Text variant="bodyBold">{participant?.name ?? "—"}</Text>
+              <Text variant="body2" color="textSecondary">
+                {getResource("mc_tech_art_placeholder")}
+              </Text>
             </Box>
             <Text variant="bodyBold">{item.averageScore.toFixed(1)}</Text>
           </Box>
         );
       })}
-
-      <Box mt={8} align="center">
-        <Text
-          variant="body2"
-          color="primary"
-          onPress={() => { router.push('/(tabs)/brackets'); }}
-        >
-          {getResource('mc_view_archive')}
-        </Text>
-      </Box>
     </ScrollView>
   );
 };
+
+type MCIconName = React.ComponentProps<typeof Ionicons>["name"];
+
+function MCIconButton({
+  icon,
+  accessibilityLabel,
+  disabled,
+  onPress,
+  variant = 'primary',
+}: {
+  icon: MCIconName;
+  accessibilityLabel: string;
+  disabled: boolean;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary';
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.iconButton, disabled && styles.iconButtonDisabled, styles[variant]]}
+    >
+      <Ionicons
+        name={icon}
+        size={variant === "primary" ? 28 : 20}
+        color={disabled ? Colors.text.secondary : Colors.primary.main}
+      />
+    </TouchableOpacity>
+  );
+}
+
+function judgesHaveSubmittedAllScores(params: {
+  judgesCount: number;
+  participantsCount: number;
+  scoresCount: number;
+}): boolean {
+  return params.scoresCount >= params.participantsCount * params.judgesCount;
+}
 
 const styles = StyleSheet.create({
   scroll: {
@@ -243,7 +343,7 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: Colors.dark.backgroundLight,
     borderRadius: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressFill: {
     height: 4,
@@ -255,21 +355,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   photoPlaceholder: {
-    width: '100%',
+    width: "100%",
     height: 220,
     backgroundColor: Colors.dark.background,
   },
   nowDancingChip: {
     backgroundColor: Colors.primary.main,
     borderRadius: 20,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   nowDancingText: {
     color: Colors.dark.background,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statBox: {
     paddingVertical: 8,
@@ -291,6 +391,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.subtle,
   },
+iconButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 39,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+    backgroundColor: Colors.dark.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonDisabled: {
+    borderColor: Colors.border.subtle,
+    opacity: 0.45,
+  },
+  noticeCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.status.warning,
+  },
   avatarCircle: {
     width: 48,
     height: 48,
@@ -305,5 +425,12 @@ const styles = StyleSheet.create({
   },
   rankNumber: {
     width: 28,
+  },
+    primary: {},
+  secondary: {
+    width: 52,
+    height: 52,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
 });

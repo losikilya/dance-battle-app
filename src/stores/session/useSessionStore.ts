@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { AppRole } from '@domain/role/types';
 
 type SessionState = {
-  role: AppRole | null;
   roles: AppRole[];
+  lastHostRoles: AppRole[];
+  lastHostSelfJudgeId: string | null;
   activeViewRole: AppRole | null;
   selfJudgeId: string | null;
   judgeId: string | null;
@@ -18,32 +19,30 @@ type SessionActions = {
   setActiveViewRole: (role: AppRole | null) => void;
   setSelfJudgeId: (judgeId: string | null) => void;
   setJudgeId: (id: string | null) => void;
-  setJudgeName: (name: string) => void;
+  setJudgeName: (name: string | null) => void;
 };
 
 function uniqueRoles(roles: AppRole[]): AppRole[] {
   return Array.from(new Set(roles));
 }
 
-function normalizeRoles(
-  primaryRole: AppRole | null,
-  roles: AppRole[],
-): AppRole[] {
-  if (primaryRole === null) {
+function normalizeRoles(roles: AppRole[]): AppRole[] {
+  if (roles.length === 0) {
     return [];
   }
 
-  if (primaryRole === 'host') {
+  if (roles.includes('host')) {
     return uniqueRoles(['host', 'spectator', ...roles]);
   }
 
-  return uniqueRoles([primaryRole, ...roles.filter(role => role !== 'host')]);
+  return uniqueRoles(['spectator', ...roles.filter(role => role !== 'host')]);
 }
 
 export const useSessionStore = create<SessionState & SessionActions>(
   (set, get) => ({
-    role: null,
     roles: [],
+    lastHostRoles: [],
+    lastHostSelfJudgeId: null,
     activeViewRole: null,
     selfJudgeId: null,
     judgeId: null,
@@ -52,22 +51,30 @@ export const useSessionStore = create<SessionState & SessionActions>(
     setRole: role =>
       set(state => {
         if (role === null) {
+          const isHost = state.roles.includes('host');
+          const lastHostRoles = isHost ? state.roles : state.lastHostRoles;
+
           return {
-            role: null,
             roles: [],
+            lastHostRoles,
+            lastHostSelfJudgeId: isHost
+              ? state.selfJudgeId
+              : state.lastHostSelfJudgeId,
             activeViewRole: null,
             selfJudgeId: null,
+            judgeId: null,
+            judgeName: null,
           };
         }
 
-        const roles =
-          role === 'host' && state.role === 'host'
-            ? normalizeRoles(role, state.roles)
-            : normalizeRoles(role, []);
+        const isCurrentHost = state.roles.includes('host');
+        const roles = role === 'host' && isCurrentHost
+          ? normalizeRoles(state.roles)
+          : normalizeRoles([role]);
 
         return {
-          role,
           roles,
+          lastHostRoles: role === 'host' ? roles : state.lastHostRoles,
           activeViewRole: role,
           selfJudgeId: role === 'host' ? state.selfJudgeId : null,
         };
@@ -75,10 +82,12 @@ export const useSessionStore = create<SessionState & SessionActions>(
 
     setRoles: roles =>
       set(state => {
-        const normalizedRoles = normalizeRoles(state.role, roles);
+        const normalizedRoles = normalizeRoles(roles);
+        const isHost = normalizedRoles.includes('host');
 
         return {
           roles: normalizedRoles,
+          lastHostRoles: isHost ? normalizedRoles : state.lastHostRoles,
           selfJudgeId: normalizedRoles.includes('judge')
             ? state.selfJudgeId
             : null,
@@ -87,10 +96,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
 
     toggleRole: role =>
       set(state => {
-        if (
-          state.role === 'host' &&
-          (role === 'host' || role === 'spectator')
-        ) {
+        if (role === 'spectator' || (state.roles.includes('host') && role === 'host')) {
           return state;
         }
 
@@ -100,7 +106,7 @@ export const useSessionStore = create<SessionState & SessionActions>(
           : [...state.roles, role];
 
         return {
-          roles: normalizeRoles(state.role, roles),
+          roles: normalizeRoles(roles),
           selfJudgeId:
             role === 'judge' && hasRole ? null : state.selfJudgeId,
         };
@@ -109,7 +115,12 @@ export const useSessionStore = create<SessionState & SessionActions>(
     hasRole: role => get().roles.includes(role),
 
     setActiveViewRole: activeViewRole => set({ activeViewRole }),
-    setSelfJudgeId: selfJudgeId => set({ selfJudgeId }),
+    setSelfJudgeId: selfJudgeId =>
+      set(state => ({
+        selfJudgeId,
+        lastHostSelfJudgeId:
+          state.roles.includes('host') ? selfJudgeId : state.lastHostSelfJudgeId,
+      })),
     setJudgeId: judgeId => set({ judgeId }),
     setJudgeName: judgeName => set({ judgeName }),
   }),

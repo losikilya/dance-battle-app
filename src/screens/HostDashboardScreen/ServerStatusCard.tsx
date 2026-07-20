@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { Box, Text } from '@components';
+import { Box, Button, Text } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
@@ -23,6 +23,7 @@ export const ServerStatusCard: React.FC = () => {
   const connectionInfo = useJudgingServerStore(s => s.connectionInfo);
   const port = useJudgingServerStore(s => s.port);
   const lastError = useJudgingServerStore(s => s.lastError);
+  const restartServer = useJudgingServerStore(s => s.restartServer);
   const isOnline = status === 'running';
 
   return (
@@ -68,6 +69,17 @@ export const ServerStatusCard: React.FC = () => {
         />
         <ServerRow label={getResource('dashboard_server_uptime')} value="-" />
       </Box>
+      {!isOnline && (
+        <Button
+          variant="outlined"
+          color="secondary"
+          onPress={() => {
+            void restartServer();
+          }}
+        >
+          {getResource('dashboard_server_retry')}
+        </Button>
+      )}
       <Box direction="row" align="flex-end" gap={4} style={styles.bars}>
         {BAR_HEIGHTS.map((h, i) => (
           <View key={i} style={[styles.bar, { height: h }]} />

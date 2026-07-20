@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ScrollView, StyleSheet, Alert, TouchableOpacity, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { Box, Text, Button } from '@components';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Colors from '@constants/Colors';
@@ -8,6 +9,8 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
+import { parseParticipantsExcel } from '../../infrastructure/import/participantsExcelImport';
+import { isInBattleConfiguration } from '@domain/sync/stateSelectors';
 import { ParticipantRow } from './ParticipantRow';
 import { ParticipantStatsBar } from './ParticipantStatsBar';
 
@@ -15,13 +18,16 @@ const PAGE_SIZE = 20;
 
 export const ParticipantsScreen: React.FC = () => {
   const router = useRouter();
-  const role = useSessionStore(s => s.role);
+  const params = useLocalSearchParams<{ battleConfigurationId?: string }>();
+  const isHost = useSessionStore(s => s.roles.includes('host'));
   const participants = useDemoBattleStore(s => s.participants);
   const event = useDemoBattleStore(s => s.event);
   const addParticipant = useDemoBattleStore(s => s.addParticipant);
+  const importParticipants = useDemoBattleStore(s => s.importParticipants);
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [isImporting, setIsImporting] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addName, setAddName] = useState('');
   const [addNumber, setAddNumber] = useState('');
@@ -29,15 +35,26 @@ export const ParticipantsScreen: React.FC = () => {
   const [addCity, setAddCity] = useState('');
 
   useEffect(() => {
-    if (role !== 'host') {
-      router.replace('/(auth)/role-selection');
+    if (!isHost) {
+      router.replace('/(auth)/discovery');
     }
-  }, [role, router]);
+  }, [isHost, router]);
 
-  const presentCount = participants.filter(p => p.checkIn === 'present').length;
-  const checkInPercent = participants.length > 0 ? (presentCount / participants.length) * 100 : 0;
+  const requestedBattleConfigurationId = Array.isArray(params.battleConfigurationId)
+    ? params.battleConfigurationId[0]
+    : params.battleConfigurationId;
+  const activeBattleConfiguration =
+    event.battleConfigurations.find(
+      (configuration) => configuration.id === requestedBattleConfigurationId,
+    ) ?? event.battleConfiguration;
+  const activeBattleConfigurationId = activeBattleConfiguration?.id ?? null;
+  const battleParticipants = participants.filter(
+    (p) => isInBattleConfiguration(activeBattleConfigurationId, p),
+  );
+  const presentCount = battleParticipants.filter(p => p.checkIn === 'present').length;
+  const checkInPercent = battleParticipants.length > 0 ? (presentCount / battleParticipants.length) * 100 : 0;
 
-  const filtered = participants.filter(p => {
+  const filtered = battleParticipants.filter(p => {
     const q = search.toLowerCase();
     return (
       p.name.toLowerCase().includes(q) ||
@@ -54,10 +71,11 @@ export const ParticipantsScreen: React.FC = () => {
   const handleAdd = () => {
     const number = parseInt(addNumber, 10);
     if (!addName.trim() || isNaN(number)) {
-      Alert.alert('Name and number are required.');
+      Alert.alert(getResource('participants_add_required_error'));
       return;
     }
     addParticipant({
+      battleConfigurationId: activeBattleConfigurationId ?? undefined,
       name: addName.trim(),
       number,
       crew: addCrew.trim() || undefined,
@@ -68,6 +86,77 @@ export const ParticipantsScreen: React.FC = () => {
     setAddCrew('');
     setAddCity('');
     setAddModalVisible(false);
+  };
+
+  const handleImport = async (): Promise<void> => {
+    try {
+      setIsImporting(true);
+
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: [
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'text/csv',
+        ],
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets[0];
+
+      if (!asset) {
+        Alert.alert(getResource('participants_import_error_title'));
+        return;
+      }
+
+      const response = await fetch(asset.uri);
+      const fileData = await response.arrayBuffer();
+      const imported = parseParticipantsExcel(fileData);
+
+      if (imported.length === 0) {
+        Alert.alert(
+          getResource('participants_import_error_title'),
+          getResource('participants_import_empty_error'),
+        );
+        return;
+      }
+
+      const importedSuccessfully = await importParticipants(
+        imported.map((participant) => ({
+          ...participant,
+          battleConfigurationId: activeBattleConfigurationId ?? undefined,
+        })),
+      );
+
+      if (!importedSuccessfully) {
+        const error = useDemoBattleStore.getState().lastCommandError;
+
+        Alert.alert(
+          getResource('participants_import_error_title'),
+          error?.message ?? getResource('participants_import_failed_error'),
+        );
+        return;
+      }
+
+      setPage(1);
+      Alert.alert(
+        getResource('participants_import_success_title'),
+        `${imported.length} ${getResource('participants_import_success_suffix')}`,
+      );
+    } catch (error) {
+      Alert.alert(
+        getResource('participants_import_error_title'),
+        error instanceof Error
+          ? error.message
+          : getResource('participants_import_failed_error'),
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -87,7 +176,7 @@ export const ParticipantsScreen: React.FC = () => {
 
         <Box mb={20}>
           <Text variant="body2" color="textSecondary">
-            {getResource('participants_subtitle_prefix')} {event.title}.
+            {getResource('participants_subtitle_prefix')} {activeBattleConfiguration?.categoryTitle ?? event.title}.
           </Text>
         </Box>
 
@@ -96,9 +185,12 @@ export const ParticipantsScreen: React.FC = () => {
             <Button
               variant="outlined"
               color="secondary"
-              onPress={() => { Alert.alert('Coming soon'); }}
+              disabled={isImporting}
+              onPress={() => { void handleImport(); }}
             >
-              {getResource('participants_import_csv')}
+              {isImporting
+                ? getResource('participants_importing')
+                : getResource('participants_import_excel')}
             </Button>
           </Box>
           <Box flex={1}>
@@ -111,7 +203,7 @@ export const ParticipantsScreen: React.FC = () => {
         <Box gap={12} mb={24}>
           <Box style={styles.statCard} p={16} direction="row" justify="space-between" align="center">
             <Text variant="body2" color="textSecondary">{getResource('participants_stat_total')}</Text>
-            <Text variant="bodyBold">{participants.length}</Text>
+            <Text variant="bodyBold">{battleParticipants.length}</Text>
           </Box>
           <Box style={styles.statCard} p={16} direction="row" justify="space-between" align="center">
             <Text variant="body2" color="textSecondary">{getResource('participants_stat_present')}</Text>
@@ -138,7 +230,9 @@ export const ParticipantsScreen: React.FC = () => {
             <ParticipantRow key={p.id} participant={p} />
           ))}
           {paged.length === 0 && (
-            <Text variant="body2" color="textSecondary" centered>No participants found.</Text>
+            <Text variant="body2" color="textSecondary" centered>
+              {getResource('participants_empty_search')}
+            </Text>
           )}
         </Box>
 
@@ -182,14 +276,14 @@ export const ParticipantsScreen: React.FC = () => {
               style={styles.modalInput}
               value={addName}
               onChangeText={setAddName}
-              placeholder="Name *"
+              placeholder={getResource('participants_name_placeholder')}
               placeholderTextColor={Colors.text.secondary}
             />
             <TextInput
               style={styles.modalInput}
               value={addNumber}
               onChangeText={setAddNumber}
-              placeholder="Number *"
+              placeholder={getResource('participants_number_placeholder')}
               placeholderTextColor={Colors.text.secondary}
               keyboardType="numeric"
             />
@@ -197,24 +291,26 @@ export const ParticipantsScreen: React.FC = () => {
               style={styles.modalInput}
               value={addCrew}
               onChangeText={setAddCrew}
-              placeholder="Crew"
+              placeholder={getResource('participants_crew_placeholder')}
               placeholderTextColor={Colors.text.secondary}
             />
             <TextInput
               style={styles.modalInput}
               value={addCity}
               onChangeText={setAddCity}
-              placeholder="City"
+              placeholder={getResource('participants_city_placeholder')}
               placeholderTextColor={Colors.text.secondary}
             />
             <Box direction="row" gap={12}>
               <Box flex={1}>
                 <Button variant="outlined" color="secondary" onPress={() => setAddModalVisible(false)}>
-                  Cancel
+                  {getResource('participants_cancel')}
                 </Button>
               </Box>
               <Box flex={1}>
-                <Button onPress={handleAdd}>Add</Button>
+                <Button onPress={handleAdd}>
+                  {getResource('participants_add_short')}
+                </Button>
               </Box>
             </Box>
           </Box>

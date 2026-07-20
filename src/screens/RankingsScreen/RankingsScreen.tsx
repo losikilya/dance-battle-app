@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
@@ -6,20 +7,48 @@ import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { calculateRanking } from '@domain/qualification/calculateRanking';
+import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { RankingRow } from './RankingRow';
 
 export const RankingsScreen: React.FC = () => {
   const { state, isHost } = useBattleState();
-  const generateTop8 = useDemoBattleStore(s => s.generateTop8);
-  const canGenerateTop8 = useDemoBattleStore(s => s.canGenerateTop8);
+  const generateBracket = useDemoBattleStore(s => s.generateBracket);
+  const canGenerateBracket = useDemoBattleStore(s => s.canGenerateBracket);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
 
-  const participants = state?.participants ?? [];
+  const participants = state ? getQualificationParticipants(state) : [];
   const scores = state?.scores ?? [];
   const ranking = calculateRanking({ participants, scores });
+  const rankingParticipantIds = ranking.map((item) => item.participantId);
+
+  useEffect(() => {
+    setSelectedParticipantIds((current) => {
+      return current.filter((participantId) =>
+        rankingParticipantIds.includes(participantId),
+      );
+    });
+  }, [rankingParticipantIds.join('|')]);
 
   const avgScore = ranking.length > 0
     ? ranking.reduce((sum, r) => sum + r.averageScore, 0) / ranking.length
     : 0;
+  const canManageBracket = isHost;
+  const canSubmitBracket =
+    isHost && canGenerateBracket() && selectedParticipantIds.length >= 2;
+
+  const handleGenerateBracket = (): void => {
+    void generateBracket(selectedParticipantIds);
+  };
+
+  const selectBracketCutoff = (participantId: string): void => {
+    const cutoffIndex = rankingParticipantIds.indexOf(participantId);
+
+    if (cutoffIndex < 0) {
+      return;
+    }
+
+    setSelectedParticipantIds(rankingParticipantIds.slice(0, cutoffIndex + 1));
+  };
 
   return (
     <ScrollView
@@ -38,7 +67,7 @@ export const RankingsScreen: React.FC = () => {
 
       <Box mb={16}>
         <Text variant="body2" color="textSecondary">
-          {getResource('ranking_description_prefix')} {state?.event.categoryTitle ?? '—'}{getResource('ranking_description_suffix')}
+          {getResource('ranking_description_prefix')} {state?.event.battleConfiguration?.categoryTitle ?? '—'}{getResource('ranking_description_suffix')}
         </Text>
       </Box>
 
@@ -63,8 +92,38 @@ export const RankingsScreen: React.FC = () => {
       <Box mb={24}>
         {ranking.map(item => {
           const participant = participants.find(p => p.id === item.participantId);
+          const isSelected = selectedParticipantIds.includes(item.participantId);
+          const selectedIndex = rankingParticipantIds.indexOf(item.participantId);
+          const isFirstSelected = isSelected && selectedIndex === 0;
+          const isLastSelected = isSelected &&
+            selectedIndex === selectedParticipantIds.length - 1;
           return (
-            <RankingRow key={item.participantId} item={item} participant={participant} />
+            <Box key={item.participantId} direction="row" align="center" gap={8}>
+              {canManageBracket && (
+                <Box
+                  style={StyleSheet.flatten([
+                    styles.selectionRail,
+                    isSelected && styles.selectionRailActive,
+                    isFirstSelected && styles.selectionRailFirst,
+                    isLastSelected && styles.selectionRailLast,
+                  ])}
+                />
+              )}
+              <Box flex={1}>
+                <RankingRow item={item} participant={participant} />
+              </Box>
+              {canManageBracket && (
+                <TouchableOpacity
+                  style={[styles.selectButton, isSelected && styles.selectButtonActive]}
+                  onPress={() => selectBracketCutoff(item.participantId)}
+                  accessibilityRole="button"
+                >
+                  <Text variant="body2" color={isSelected ? 'dark' : 'textSecondary'}>
+                    {isSelected ? getResource('ranking_selected') : getResource('ranking_select')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </Box>
           );
         })}
       </Box>
@@ -82,13 +141,16 @@ export const RankingsScreen: React.FC = () => {
         </Box>
       </Box>
 
-      {isHost && (
+      {canManageBracket && (
         <Box style={styles.ctaCard} p={20} gap={16}>
           <Text variant="bodyBold" color="dark">{getResource('ranking_cta_label')}</Text>
+          <Text variant="body2" color="dark">
+            {getResource('ranking_selected_count_prefix')} {selectedParticipantIds.length}
+          </Text>
           <Button
             color="secondaryDark"
-            onPress={generateTop8}
-            disabled={!canGenerateTop8()}
+            onPress={handleGenerateBracket}
+            disabled={!canSubmitBracket}
           >
             {getResource('ranking_cta_button')}
           </Button>
@@ -138,5 +200,36 @@ const styles = StyleSheet.create({
   ctaCard: {
     backgroundColor: Colors.primary.main,
     borderRadius: 12,
+  },
+  selectButton: {
+    width: 74,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border.subtle,
+    backgroundColor: Colors.dark.backgroundLight,
+  },
+  selectButtonActive: {
+    borderColor: Colors.primary.main,
+    backgroundColor: Colors.primary.main,
+  },
+  selectionRail: {
+    width: 4,
+    alignSelf: 'stretch',
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+  },
+  selectionRailActive: {
+    backgroundColor: Colors.primary.main,
+  },
+  selectionRailFirst: {
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+  },
+  selectionRailLast: {
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
   },
 });

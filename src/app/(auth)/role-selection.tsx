@@ -1,13 +1,8 @@
-import { RoleSelectionScreen } from "@screens/RoleSelectionScreen";
 import { useSessionStore } from "@stores/session/useSessionStore";
 import { Redirect } from "expo-router";
 
 export default function RoleSelectionRoute(): React.JSX.Element {
-  const role = useSessionStore((s) => s.role);
+  const hasRoles = useSessionStore((s) => s.roles.length > 0);
 
-  if (role) {
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <RoleSelectionScreen />;
+  return <Redirect href={hasRoles ? "/(tabs)" : "/(auth)/discovery"} />;
 }

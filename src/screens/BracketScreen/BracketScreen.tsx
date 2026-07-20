@@ -5,14 +5,26 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
+import { useSessionStore } from '@stores/session/useSessionStore';
 import { BattleRound } from '@domain/battle/types';
 import { BattleCard } from './BattleCard';
 import { PowerRankingsWidget } from './PowerRankingsWidget';
 import { BattleFeedWidget } from './BattleFeedWidget';
+import { HostBattleVoteWidget } from './HostBattleVoteWidget';
 
-const ROUND_ORDER: BattleRound[] = ['top8', 'semifinal', 'final'];
+const ROUND_ORDER: BattleRound[] = [
+  'final',
+  'semifinal',
+  'top8',
+  'top16',
+  'top32',
+  'custom',
+];
 
 const ROUND_LABELS: Record<BattleRound, string> = {
+  custom: getResource('bracket_round_custom'),
+  top32: getResource('bracket_round_top32'),
+  top16: getResource('bracket_round_top16'),
   top8: getResource('bracket_round_top8'),
   semifinal: getResource('bracket_round_semifinal'),
   final: getResource('bracket_round_final'),
@@ -20,21 +32,38 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 
 export const BracketScreen: React.FC = () => {
   const { state, isHost } = useBattleState();
+  const hasJudgeRole = useSessionStore(s => s.roles.includes('judge'));
   const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
   const generateNextRound = useDemoBattleStore(s => s.generateNextRound);
+  const startBattle = useDemoBattleStore(s => s.startBattle);
+  const openBattleVoting = useDemoBattleStore(s => s.openBattleVoting);
+  const canStartBattle = useDemoBattleStore(s => s.canStartBattle);
+  const canOpenBattleVoting = useDemoBattleStore(s => s.canOpenBattleVoting);
+  const submitRandomVotesForBattle = useDemoBattleStore(
+    s => s.submitRandomVotesForBattle,
+  );
 
   const battles = state?.battles ?? [];
   const participants = state?.participants ?? [];
+  const votes = state?.votes ?? [];
 
-  const activeBattleParticipants = battles.filter(
-    b => b.status === 'active' || b.status === 'voting'
-  ).length * 2;
+  const activeBattleParticipants = battles
+    .filter(b => b.status === 'active' || b.status === 'voting')
+    .reduce(
+      (count, battle) =>
+        count +
+        (battle.participantIds.length > 0
+          ? battle.participantIds.length
+          : 2),
+      0,
+    );
 
-  const activeRound = battles.find(b => b.round === 'final' && b.status === 'active')
-    ? ROUND_LABELS.final
-    : battles.find(b => b.round === 'semifinal' && b.status === 'active')
-      ? ROUND_LABELS.semifinal
-      : ROUND_LABELS.top8;
+  const activeBattle = battles.find(
+    b => b.status === 'active' || b.status === 'voting',
+  );
+  const canShowHostVoteWidget =
+    isHost && hasJudgeRole && activeBattle?.status === 'voting';
+  const activeRound = ROUND_LABELS[activeBattle?.round ?? battles[0]?.round ?? 'top8'];
 
   return (
     <ScrollView
@@ -54,6 +83,14 @@ export const BracketScreen: React.FC = () => {
         </Box>
       </Box>
 
+      {canShowHostVoteWidget && activeBattle && (
+        <HostBattleVoteWidget
+          battle={activeBattle}
+          participants={participants}
+          categoryTitle={state?.event.battleConfiguration?.categoryTitle ?? '—'}
+        />
+      )}
+
       {ROUND_ORDER.map(round => {
         const roundBattles = battles.filter(b => b.round === round);
         if (roundBattles.length === 0) return null;
@@ -61,7 +98,30 @@ export const BracketScreen: React.FC = () => {
           <Box key={round} mb={24} gap={12}>
             <Text variant="body2" color="textSecondary" centered>{ROUND_LABELS[round]}</Text>
             {roundBattles.map(battle => (
-              <BattleCard key={battle.id} battle={battle} />
+              <BattleCard
+                key={battle.id}
+                battle={battle}
+                participants={participants}
+                votes={votes}
+                canStartBattle={isHost && canStartBattle(battle.id)}
+                canOpenVoting={isHost && canOpenBattleVoting(battle.id)}
+                canSubmitMockVotes={isHost}
+                onStartBattle={
+                  isHost
+                    ? (battleId) => { void startBattle(battleId); }
+                    : undefined
+                }
+                onOpenVoting={
+                  isHost
+                    ? (battleId) => { void openBattleVoting(battleId); }
+                    : undefined
+                }
+                onSubmitMockVotes={
+                  isHost
+                    ? (battleId) => { void submitRandomVotesForBattle(battleId); }
+                    : undefined
+                }
+              />
             ))}
           </Box>
         );
@@ -83,7 +143,7 @@ export const BracketScreen: React.FC = () => {
       )}
 
       <Box gap={16} mt={8}>
-        <PowerRankingsWidget />
+        {!isHost && <PowerRankingsWidget />}
         <BattleFeedWidget />
       </Box>
     </ScrollView>
