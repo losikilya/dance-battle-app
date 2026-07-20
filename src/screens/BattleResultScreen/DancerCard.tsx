@@ -5,11 +5,18 @@ import { getResource } from '@resources';
 import { Participant } from '@domain/participant/types';
 
 type DancerCardProps = {
-  participant: Participant;
+  participant: Participant | null;
   isWinner: boolean;
+  voteCount?: number;
+  fallbackName?: string;
 };
 
-export const DancerCard: React.FC<DancerCardProps> = ({ participant, isWinner }) => (
+export const DancerCard: React.FC<DancerCardProps> = ({
+  participant,
+  isWinner,
+  voteCount,
+  fallbackName = 'Unknown',
+}) => (
   <Box
     style={isWinner ? { ...styles.card, ...styles.winnerCard } : { ...styles.card, ...styles.loserCard }}
     gap={12}
@@ -21,8 +28,13 @@ export const DancerCard: React.FC<DancerCardProps> = ({ participant, isWinner })
       </Box>
     )}
     <View style={[styles.photoPlaceholder, isWinner ? styles.photoWinner : styles.photoLoser]} />
-    <Text variant="h2">{participant.name}</Text>
-    {participant.city !== undefined && (
+    <Text variant="h2">{participant?.name ?? fallbackName}</Text>
+    {voteCount !== undefined && (
+      <Text variant="bodyBold" color={isWinner ? 'primary' : 'textPrimary'}>
+        {getResource('result_vote_prefix')} {voteCount}
+      </Text>
+    )}
+    {participant?.city !== undefined && (
       <Text variant="body2" color="textSecondary">
         {getResource('result_representing_prefix')} {participant.city}
       </Text>

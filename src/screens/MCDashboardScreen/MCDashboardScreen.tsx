@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Box, Text, Button, QualificationTimerDisplay } from "@components";
 import Colors from "@constants/Colors";
 import { HEADER_HEIGHT, FOOTER_HEIGHT } from "@constants/Dimensions";
@@ -19,8 +19,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export const MCDashboardScreen: React.FC = () => {
-  const router = useRouter();
   const syncedState = useJudgingClientStore((s) => s.syncedState);
+  const lastError = useJudgingClientStore((s) => s.lastError);
   const pauseQualificationTimer = useJudgingClientStore(
     (s) => s.pauseQualificationTimer,
   );
@@ -32,6 +32,12 @@ export const MCDashboardScreen: React.FC = () => {
   );
   const advanceQualificationParticipant = useJudgingClientStore(
     (s) => s.advanceQualificationParticipant,
+  );
+  const markCurrentParticipantAbsent = useJudgingClientStore(
+    (s) => s.markCurrentParticipantAbsent,
+  );
+  const moveCurrentParticipantToEnd = useJudgingClientStore(
+    (s) => s.moveCurrentParticipantToEnd,
   );
   const finishQualification = useJudgingClientStore(
     (s) => s.finishQualification,
@@ -56,8 +62,14 @@ export const MCDashboardScreen: React.FC = () => {
   const qualificationTimer = syncedState?.qualificationTimer ?? null;
   const event = syncedState?.event ?? null;
   const top8 = ranking.slice(0, 8);
-  const isManualMode =
-    event?.battleConfiguration?.qualificationAdvanceMode === "manual";
+  const isQualificationActive =
+    eventStatus === "qualification" && currentParticipant !== null;
+  const isLastParticipant = idx >= participants.length - 1;
+  const timerToggleIcon =
+    qualificationTimer?.status === "running" ? "pause" : "play";
+  const canToggleTimer =
+    qualificationTimer?.status === "running" ||
+    qualificationTimer?.status === "paused";
   const canFinishQualification =
     eventStatus === "qualification" &&
     participants.length > 0 &&
@@ -80,6 +92,13 @@ export const MCDashboardScreen: React.FC = () => {
           {getResource("mc_live_event")}
         </Text>
       </Box>
+      {lastError !== null && (
+        <Box style={styles.noticeCard} p={12} mb={12}>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource("connection_remote_error_prefix")}: {lastError}
+          </Text>
+        </Box>
+      )}
       <Box mb={4}>
         <Text variant="body2" color="textSecondary">
           {getResource("mc_stage_prefix")}{" "}
@@ -148,44 +167,50 @@ export const MCDashboardScreen: React.FC = () => {
               event.battleConfiguration?.qualificationDurationSeconds ?? 60
             }
           />
-          <Box direction="row" gap={8}>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={
-                  qualificationTimer.status === "paused"
-                    ? resumeQualificationTimer
-                    : pauseQualificationTimer
-                }
-                disabled={
-                  qualificationTimer.status !== "running" &&
-                  qualificationTimer.status !== "paused"
-                }
-              >
-                {qualificationTimer.status === "paused" ? "RESUME" : "PAUSE"}
-              </Button>
-            </Box>
-            <Box flex={1}>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onPress={restartQualificationTimer}
-              >
-                RESTART
-              </Button>
-            </Box>
+          <Box direction="row" justify="space-between" align="center" gap={12}>
+            <MCIconButton
+              icon="bed"
+              accessibilityLabel={getResource("mc_action_late")}
+              disabled={!isQualificationActive || isLastParticipant}
+              onPress={moveCurrentParticipantToEnd}
+              variant="secondary"
+            />
+            <MCIconButton
+              icon="trash-outline"
+              accessibilityLabel={getResource("mc_action_absent")}
+              disabled={!isQualificationActive}
+              onPress={markCurrentParticipantAbsent}
+              variant="secondary"
+            />
           </Box>
-          {isManualMode && (
-            <Button
-              variant="outlined"
-              color="secondary"
+          <Box direction="row" justify="center" align="center" gap={24}>
+            <MCIconButton
+              icon="reload-outline"
+              accessibilityLabel={getResource("mc_action_restart")}
+              disabled={!isQualificationActive}
+              onPress={restartQualificationTimer}
+            />
+            <MCIconButton
+              icon={timerToggleIcon}
+              accessibilityLabel={
+                qualificationTimer.status === "paused"
+                  ? getResource("mc_action_resume")
+                  : getResource("mc_action_pause")
+              }
+              disabled={!canToggleTimer}
+              onPress={
+                qualificationTimer.status === "paused"
+                  ? resumeQualificationTimer
+                  : pauseQualificationTimer
+              }
+            />
+            <MCIconButton
+              icon="play-forward-outline"
+              accessibilityLabel={getResource("mc_action_next")}
+              disabled={!isQualificationActive || isLastParticipant}
               onPress={advanceQualificationParticipant}
-              disabled={idx >= participants.length - 1}
-            >
-              NEXT PARTICIPANT
-            </Button>
-          )}
+            />
+          </Box>
           {canFinishQualification && (
             <Button
               variant="contained"
@@ -254,6 +279,38 @@ export const MCDashboardScreen: React.FC = () => {
     </ScrollView>
   );
 };
+
+type MCIconName = React.ComponentProps<typeof Ionicons>["name"];
+
+function MCIconButton({
+  icon,
+  accessibilityLabel,
+  disabled,
+  onPress,
+  variant = 'primary',
+}: {
+  icon: MCIconName;
+  accessibilityLabel: string;
+  disabled: boolean;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary';
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.iconButton, disabled && styles.iconButtonDisabled, styles[variant]]}
+    >
+      <Ionicons
+        name={icon}
+        size={variant === "primary" ? 28 : 20}
+        color={disabled ? Colors.text.secondary : Colors.primary.main}
+      />
+    </TouchableOpacity>
+  );
+}
 
 function judgesHaveSubmittedAllScores(params: {
   judgesCount: number;
@@ -334,6 +391,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.subtle,
   },
+iconButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 39,
+    borderWidth: 1,
+    borderColor: Colors.primary.main,
+    backgroundColor: Colors.dark.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonDisabled: {
+    borderColor: Colors.border.subtle,
+    opacity: 0.45,
+  },
+  noticeCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.status.warning,
+  },
   avatarCircle: {
     width: 48,
     height: 48,
@@ -348,5 +425,12 @@ const styles = StyleSheet.create({
   },
   rankNumber: {
     width: 28,
+  },
+    primary: {},
+  secondary: {
+    width: 52,
+    height: 52,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
 });

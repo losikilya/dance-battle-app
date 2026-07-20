@@ -92,6 +92,15 @@ export type QualificationParticipantAdvancedEvent = AppEventMeta & {
   };
 };
 
+export type QualificationParticipantMovedToEndEvent = AppEventMeta & {
+  type: 'qualification.participantMovedToEnd';
+  payload: {
+    participantId: string;
+    participantIndex: number;
+    timer: QualificationTimerState;
+  };
+};
+
 export type QualificationTimerPausedEvent = AppEventMeta & {
   type: 'qualification.timerPaused';
   payload: {
@@ -208,6 +217,7 @@ export type AppEvent =
   | EventResetEvent
   | QualificationParticipantChangedEvent
   | QualificationParticipantAdvancedEvent
+  | QualificationParticipantMovedToEndEvent
   | QualificationTimerPausedEvent
   | QualificationTimerResumedEvent
   | QualificationTimerRestartedEvent

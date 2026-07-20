@@ -9,6 +9,7 @@ import { useSessionStore } from '@stores/session/useSessionStore';
 import { ScoreNumpad } from '@screens/JudgeQualificationScreen/ScoreNumpad';
 import { DancerVoteCard } from '@screens/JudgeBattleVotingScreen/DancerVoteCard';
 import { getQualificationParticipants } from '@domain/sync/stateSelectors';
+import { getBattleParticipantDisplayRows } from '@screens/shared/battleDisplay';
 import { getJudgeDisplayName } from '../../shared/lib/getJudgeDisplayName';
 
 function getInitialLocalQualificationParticipantIndex(params: {
@@ -89,12 +90,15 @@ export const HostLocalJudgeView: React.FC = () => {
       : null;
   const activeBattle =
     battles.find(battle => battle.id === activeBattleId) ?? null;
-  const participantA = participants.find(
-    participant => participant.id === activeBattle?.participantAId,
-  );
-  const participantB = participants.find(
-    participant => participant.id === activeBattle?.participantBId,
-  );
+  const battleParticipantRows = activeBattle
+    ? getBattleParticipantDisplayRows({
+        battle: activeBattle,
+        participants,
+        votes,
+      })
+    : [];
+  const participantA = battleParticipantRows[0]?.participant ?? undefined;
+  const participantB = battleParticipantRows[1]?.participant ?? undefined;
   const selfJudge = judges.find(judge => judge.id === selfJudgeId);
   const displayRole = isHost ? 'host' : null;
   const existingScore =
@@ -417,7 +421,8 @@ export const HostLocalJudgeView: React.FC = () => {
       ) : event.status === 'battle' &&
         activeBattle &&
         participantA &&
-        participantB ? (
+        participantB &&
+        battleParticipantRows.length >= 2 ? (
         <Box gap={16}>
           <DancerVoteCard
             participant={participantA}
@@ -437,6 +442,25 @@ export const HostLocalJudgeView: React.FC = () => {
             disabled={!canActAsJudge || !isVotingOpen || existingVote !== null}
             categoryTitle={event.battleConfiguration?.categoryTitle ?? '—'}
           />
+
+          {battleParticipantRows.slice(2).map((row, index) => (
+            row.participant !== null && (
+              <DancerVoteCard
+                key={row.participantId}
+                participant={row.participant}
+                label={`${getResource('judge_dancer_label')} ${index + 3}`}
+                accentColor={
+                  index % 2 === 0
+                    ? Colors.primary.main
+                    : Colors.secondary.dark
+                }
+                isSelected={pendingVote === row.participantId}
+                onPress={() => setPendingVote(row.participantId)}
+                disabled={!canActAsJudge || !isVotingOpen || existingVote !== null}
+                categoryTitle={event.battleConfiguration?.categoryTitle ?? 'â€”'}
+              />
+            )
+          ))}
 
           {activeBattle.status === 'active' && (
             <Box style={styles.notice} p={16}>

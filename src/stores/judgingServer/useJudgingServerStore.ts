@@ -263,8 +263,9 @@ function isMcQualificationControlCommand(command: AppCommand): boolean {
     command.type === 'qualification.timer.resume' ||
     command.type === 'qualification.timer.restart' ||
     command.type === 'qualification.advanceParticipant' ||
-    command.type === 'qualification.finish' ||
-    command.type === 'bracket.generate'
+    command.type === 'qualification.markParticipantAbsent' ||
+    command.type === 'qualification.moveParticipantToEnd' ||
+    command.type === 'qualification.finish'
   );
 }
 
@@ -470,6 +471,7 @@ export const useJudgingServerStore = create<
     );
     const assignedJudgeId = existingClient?.judgeId ?? null;
     const assignedRole = existingClient?.role ?? 'spectator';
+    const requestedName = message.name?.trim();
 
     const previousSocket = clientSockets.get(deviceId);
     if (previousSocket && previousSocket !== socket) {
@@ -480,24 +482,19 @@ export const useJudgingServerStore = create<
     const client: ConnectedClient = {
       deviceId,
       judgeId: assignedJudgeId,
-      name: (existingClient?.name ?? message.name?.trim()) || 'Unknown',
+      name: requestedName || existingClient?.name || 'Unknown',
       role: assignedRole,
       isOnline: true,
     };
 
-    set((state) => {
-      const exists = state.connectedClients.some(
-        (item) => item.deviceId === client.deviceId,
-      );
-
-      return {
-        connectedClients: exists
-          ? state.connectedClients.map((item) =>
-              item.deviceId === client.deviceId ? client : item,
-            )
-          : [...state.connectedClients, client],
-      };
-    });
+    set((state) => ({
+      connectedClients: [
+        ...state.connectedClients.filter(
+          (item) => item.deviceId !== client.deviceId,
+        ),
+        client,
+      ],
+    }));
 
     writeMessage(socket, {
       type: 'joined',
@@ -550,7 +547,7 @@ export const useJudgingServerStore = create<
         sendError(
           socket,
           'action_not_allowed',
-          'MC can control qualification flow and bracket generation',
+          'MC can control qualification flow only',
           message.messageId,
         );
         return;

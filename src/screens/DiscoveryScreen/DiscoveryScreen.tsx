@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Box, Button, Text } from '@components';
@@ -10,6 +10,7 @@ import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerSto
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import type { AppRole } from '@domain/role/types';
+import { resetAppSession } from '../../shared/session/resetAppSession';
 
 export const DiscoveryScreen: React.FC = () => {
   const router = useRouter();
@@ -27,7 +28,6 @@ export const DiscoveryScreen: React.FC = () => {
   const resetConnectionTarget = useJudgingClientStore(
     s => s.resetConnectionTarget,
   );
-  const stopServer = useJudgingServerStore(s => s.stopServer);
   const deleteLocalEvent = useDemoBattleStore(s => s.deleteLocalEvent);
   const localEventTitle = useDemoBattleStore(s => s.event.title.trim());
 
@@ -81,7 +81,7 @@ export const DiscoveryScreen: React.FC = () => {
           text: getResource('discovery_delete_local_confirm'),
           style: 'destructive',
           onPress: () => {
-            stopServer();
+            resetAppSession();
             void deleteLocalEvent();
           },
         },
@@ -96,6 +96,14 @@ export const DiscoveryScreen: React.FC = () => {
   const handleEnterManually = () => {
     setRole('spectator');
     resetConnectionTarget();
+    if (Platform.OS === 'web' && __DEV__) {
+      connectToHost({
+        host: 'web-preview',
+        port: 0,
+        role: 'spectator',
+        name: `Web ${getResource('discovery_role_spectator')}`,
+      });
+    }
     router.push('/(tabs)/live');
   };
 

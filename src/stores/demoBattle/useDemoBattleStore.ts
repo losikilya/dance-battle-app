@@ -162,6 +162,8 @@ type DemoBattleActions = {
   resumeQualificationTimer: () => Promise<void>;
   restartQualificationTimer: () => Promise<void>;
   advanceQualificationParticipant: () => Promise<void>;
+  markCurrentParticipantAbsent: () => Promise<void>;
+  moveCurrentParticipantToEnd: () => Promise<void>;
   goToNextQualificationParticipant: () => Promise<void>;
   finishQualification: () => Promise<void>;
 
@@ -1009,6 +1011,46 @@ export const useDemoBattleStore = create<DemoBattleStore>((set, get) => {
       await executeCommand(
         createCommand("qualification.advanceParticipant", {
           reason: "manual",
+        }),
+      );
+    },
+
+    markCurrentParticipantAbsent: async () => {
+      const participant = get().getCurrentQualificationParticipant();
+
+      if (!participant) {
+        set({
+          lastCommandError: {
+            code: "not_found",
+            message: "Current participant was not found",
+          },
+        });
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.markParticipantAbsent", {
+          participantId: participant.id,
+        }),
+      );
+    },
+
+    moveCurrentParticipantToEnd: async () => {
+      const participant = get().getCurrentQualificationParticipant();
+
+      if (!participant) {
+        set({
+          lastCommandError: {
+            code: "not_found",
+            message: "Current participant was not found",
+          },
+        });
+        return;
+      }
+
+      await executeCommand(
+        createCommand("qualification.moveParticipantToEnd", {
+          participantId: participant.id,
         }),
       );
     },

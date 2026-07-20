@@ -13,7 +13,7 @@ export const LiveScoreBar: React.FC<LiveScoreBarProps> = ({ label, score, fill, 
   <Box gap={6}>
     <Box direction="row" justify="space-between" align="center">
       <Text variant="bodyBold">{label}</Text>
-      <Text variant="bodyBold" style={{ color }}>{score.toFixed(1)}</Text>
+      <Text variant="bodyBold" style={{ color }}>{score}</Text>
     </Box>
     <Box style={styles.track}>
       <Box

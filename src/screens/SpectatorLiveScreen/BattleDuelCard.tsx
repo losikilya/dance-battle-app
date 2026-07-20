@@ -2,8 +2,8 @@ import { StyleSheet } from 'react-native';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
-import type { Participant } from '@domain/participant/types';
 import type { BattleRound } from '@domain/battle/types';
+import type { BattleParticipantDisplayRow } from '@screens/shared/battleDisplay';
 
 const ROUND_LABELS: Record<BattleRound, string> = {
   custom: getResource('bracket_round_custom'),
@@ -15,61 +15,64 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 };
 
 type BattleDuelCardProps = {
-  participantA: Participant | undefined;
-  participantB: Participant | undefined;
+  participants: BattleParticipantDisplayRow[];
   round: BattleRound;
   broadcastLabel?: string;
   isLive?: boolean;
 };
 
 export const BattleDuelCard: React.FC<BattleDuelCardProps> = ({
-  participantA,
-  participantB,
+  participants,
   round,
   broadcastLabel = getResource('spectator_live_broadcast'),
   isLive = true,
-}) => (
-  <Box style={styles.card} p={16} gap={16}>
-    <Box align="center" gap={8}>
-      <Box style={{ ...styles.photoCircle, ...styles.photoCircleCyan }} align="center" justify="center">
-        <Text variant="h2" color="primary">
-          {participantA?.name.charAt(0).toUpperCase() ?? '?'}
-        </Text>
-      </Box>
-      <Text variant="bodyBold">{participantA?.name ?? '—'}</Text>
-      <Text variant="body2" color="textSecondary">
-        {`${getResource('spectator_origin_prefix')} ${participantA?.city ?? '—'}`}
-      </Text>
-    </Box>
+}) => {
+  const accentStyles = [styles.photoCircleCyan, styles.photoCirclePurple];
 
-    <Box align="center" gap={4}>
-      <Box style={styles.vsBadge} px={16} py={6}>
-        <Text variant="bodyBold">VS</Text>
+  return (
+    <Box style={styles.card} p={16} gap={16}>
+      <Box align="center" gap={4}>
+        <Box style={styles.vsBadge} px={16} py={6}>
+          <Text variant="bodyBold">VS</Text>
+        </Box>
+        <Text variant="body2" color="textSecondary">{ROUND_LABELS[round]}</Text>
       </Box>
-      <Text variant="body2" color="textSecondary">{ROUND_LABELS[round]}</Text>
-    </Box>
 
-    <Box align="center" gap={8}>
-      <Box style={{ ...styles.photoCircle, ...styles.photoCirclePurple }} align="center" justify="center">
-        <Text variant="h2" style={styles.purpleText}>
-          {participantB?.name.charAt(0).toUpperCase() ?? '?'}
-        </Text>
-      </Box>
-      <Text variant="bodyBold">{participantB?.name ?? '—'}</Text>
-      <Text variant="body2" color="textSecondary">
-        {`${getResource('spectator_origin_prefix')} ${participantB?.city ?? '—'}`}
-      </Text>
-    </Box>
+      {participants.map((row, index) => (
+        <Box key={row.participantId} align="center" gap={8}>
+          <Box
+            style={{
+              ...styles.photoCircle,
+              ...accentStyles[index % accentStyles.length],
+            }}
+            align="center"
+            justify="center"
+          >
+            <Text
+              variant="h2"
+              color={index % 2 === 0 ? 'primary' : undefined}
+              style={index % 2 === 0 ? undefined : styles.purpleText}
+            >
+              {row.name.charAt(0).toUpperCase()}
+            </Text>
+          </Box>
+          <Text variant="bodyBold">{row.name}</Text>
+          <Text variant="body2" color="textSecondary">
+            {`${getResource('spectator_origin_prefix')} ${row.participant?.city ?? '-'}`}
+          </Text>
+        </Box>
+      ))}
 
-    <Box direction="row" align="center" gap={8} mt={4}>
-      <Box style={isLive ? styles.liveDot : styles.resultDot} />
-      <Text variant="body2" color={isLive ? 'primary' : 'textSecondary'}>{broadcastLabel}</Text>
-      <Box style={styles.broadcastBar} flex={1}>
-        <Box style={isLive ? styles.broadcastFill : styles.resultFill} />
+      <Box direction="row" align="center" gap={8} mt={4}>
+        <Box style={isLive ? styles.liveDot : styles.resultDot} />
+        <Text variant="body2" color={isLive ? 'primary' : 'textSecondary'}>{broadcastLabel}</Text>
+        <Box style={styles.broadcastBar} flex={1}>
+          <Box style={isLive ? styles.broadcastFill : styles.resultFill} />
+        </Box>
       </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

@@ -19,7 +19,7 @@ type SessionActions = {
   setActiveViewRole: (role: AppRole | null) => void;
   setSelfJudgeId: (judgeId: string | null) => void;
   setJudgeId: (id: string | null) => void;
-  setJudgeName: (name: string) => void;
+  setJudgeName: (name: string | null) => void;
 };
 
 function uniqueRoles(roles: AppRole[]): AppRole[] {
@@ -62,6 +62,8 @@ export const useSessionStore = create<SessionState & SessionActions>(
               : state.lastHostSelfJudgeId,
             activeViewRole: null,
             selfJudgeId: null,
+            judgeId: null,
+            judgeName: null,
           };
         }
 

@@ -18,6 +18,7 @@ export const JudgeBattleVotingScreen: React.FC = () => {
   const [pendingVote, setPendingVote] = useState<string | null>(null);
 
   const syncedState = useJudgingClientStore(s => s.syncedState);
+  const lastError = useJudgingClientStore(s => s.lastError);
   const submitBattleVote = useJudgingClientStore(s => s.submitBattleVote);
   const judgeId = useJudgingClientStore(s => s.assignedJudgeId);
   const assignedJudgeName = useJudgingClientStore(s => s.assignedJudgeName);
@@ -64,6 +65,25 @@ export const JudgeBattleVotingScreen: React.FC = () => {
           </Text>
         )}
       </Box>
+
+      {lastError !== null && (
+        <Box style={styles.noticeCard} p={12} mb={16}>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_remote_error_prefix')}: {lastError}
+          </Text>
+        </Box>
+      )}
+
+      {judgeId === null && (
+        <Box style={styles.noticeCard} p={12} mb={16}>
+          <Text variant="bodyBold" centered>
+            {getResource('connection_waiting_assignment_title')}
+          </Text>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_waiting_assignment_body')}
+          </Text>
+        </Box>
+      )}
 
       {activeBattle !== null && (
         <Box direction="row" align="center" gap={8} mb={24}>
@@ -162,6 +182,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border.subtle,
+  },
+  noticeCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.status.warning,
   },
   progressTrack: {
     width: '100%',

@@ -35,13 +35,28 @@ export const BracketScreen: React.FC = () => {
   const hasJudgeRole = useSessionStore(s => s.roles.includes('judge'));
   const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
   const generateNextRound = useDemoBattleStore(s => s.generateNextRound);
+  const startBattle = useDemoBattleStore(s => s.startBattle);
+  const openBattleVoting = useDemoBattleStore(s => s.openBattleVoting);
+  const canStartBattle = useDemoBattleStore(s => s.canStartBattle);
+  const canOpenBattleVoting = useDemoBattleStore(s => s.canOpenBattleVoting);
+  const submitRandomVotesForBattle = useDemoBattleStore(
+    s => s.submitRandomVotesForBattle,
+  );
 
   const battles = state?.battles ?? [];
   const participants = state?.participants ?? [];
+  const votes = state?.votes ?? [];
 
-  const activeBattleParticipants = battles.filter(
-    b => b.status === 'active' || b.status === 'voting'
-  ).length * 2;
+  const activeBattleParticipants = battles
+    .filter(b => b.status === 'active' || b.status === 'voting')
+    .reduce(
+      (count, battle) =>
+        count +
+        (battle.participantIds.length > 0
+          ? battle.participantIds.length
+          : 2),
+      0,
+    );
 
   const activeBattle = battles.find(
     b => b.status === 'active' || b.status === 'voting',
@@ -83,7 +98,30 @@ export const BracketScreen: React.FC = () => {
           <Box key={round} mb={24} gap={12}>
             <Text variant="body2" color="textSecondary" centered>{ROUND_LABELS[round]}</Text>
             {roundBattles.map(battle => (
-              <BattleCard key={battle.id} battle={battle} />
+              <BattleCard
+                key={battle.id}
+                battle={battle}
+                participants={participants}
+                votes={votes}
+                canStartBattle={isHost && canStartBattle(battle.id)}
+                canOpenVoting={isHost && canOpenBattleVoting(battle.id)}
+                canSubmitMockVotes={isHost}
+                onStartBattle={
+                  isHost
+                    ? (battleId) => { void startBattle(battleId); }
+                    : undefined
+                }
+                onOpenVoting={
+                  isHost
+                    ? (battleId) => { void openBattleVoting(battleId); }
+                    : undefined
+                }
+                onSubmitMockVotes={
+                  isHost
+                    ? (battleId) => { void submitRandomVotesForBattle(battleId); }
+                    : undefined
+                }
+              />
             ))}
           </Box>
         );

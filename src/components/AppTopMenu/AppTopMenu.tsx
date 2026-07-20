@@ -19,6 +19,7 @@ import { useDemoBattleStore } from "@stores/demoBattle/useDemoBattleStore";
 import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
 import type { AppRole } from "@domain/role/types";
+import { resetAppSession } from "../../shared/session/resetAppSession";
 
 type AppMenuAction = {
   id: string;
@@ -65,7 +66,6 @@ export function AppTopMenu(): React.JSX.Element {
   const router = useRouter();
   const roles = useSessionStore((state) => state.roles);
   const assignedClientRole = useJudgingClientStore((state) => state.role);
-  const setRole = useSessionStore((state) => state.setRole);
   const hasJudgeRole = useSessionStore((state) => state.hasRole("judge"));
   const setActiveViewRole = useSessionStore((state) => state.setActiveViewRole);
   const setSelfJudgeId = useSessionStore((state) => state.setSelfJudgeId);
@@ -95,7 +95,7 @@ export function AppTopMenu(): React.JSX.Element {
 
   const handleExit = (): void => {
     setIsOpen(false);
-    setRole(null);
+    resetAppSession();
     router.replace("/(auth)/discovery");
   };
 

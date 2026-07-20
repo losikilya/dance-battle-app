@@ -132,6 +132,44 @@ function updateBattleConfigurationStatus(
   };
 }
 
+function moveQualificationParticipantToEnd(
+  state: BattleAppState,
+  participantId: string,
+): BattleAppState['participants'] {
+  const activeBattleConfigurationId = getActiveBattleConfigurationId(state.event);
+  const activePresentParticipants = state.participants.filter(
+    (participant) =>
+      isInBattleConfiguration(activeBattleConfigurationId, participant) &&
+      participant.checkIn === 'present',
+  );
+  const participant = activePresentParticipants.find(
+    (item) => item.id === participantId,
+  );
+
+  if (!participant) {
+    return state.participants;
+  }
+
+  const reorderedActiveParticipants = [
+    ...activePresentParticipants.filter((item) => item.id !== participantId),
+    participant,
+  ];
+  let nextActiveIndex = 0;
+
+  return state.participants.map((item) => {
+    if (
+      isInBattleConfiguration(activeBattleConfigurationId, item) &&
+      item.checkIn === 'present'
+    ) {
+      const nextParticipant = reorderedActiveParticipants[nextActiveIndex];
+      nextActiveIndex += 1;
+      return nextParticipant ?? item;
+    }
+
+    return item;
+  });
+}
+
 
 export function applyEvent(
   state: BattleAppState,
@@ -698,6 +736,22 @@ export function applyEvent(
           logEntry(
             `Qualification advanced (${event.payload.reason}) to participant ${event.payload.participantIndex + 1}.`,
           ),
+        ],
+      };
+    }
+
+    case "qualification.participantMovedToEnd": {
+      return {
+        ...state,
+        participants: moveQualificationParticipantToEnd(
+          state,
+          event.payload.participantId,
+        ),
+        currentQualificationParticipantIndex: event.payload.participantIndex,
+        qualificationTimer: event.payload.timer,
+        systemLogs: [
+          ...state.systemLogs,
+          logEntry('Qualification participant moved to the end.'),
         ],
       };
     }

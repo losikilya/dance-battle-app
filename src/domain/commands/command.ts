@@ -33,6 +33,20 @@ export type AdvanceQualificationParticipantCommand = CommandMeta & {
   };
 };
 
+export type MarkQualificationParticipantAbsentCommand = CommandMeta & {
+  type: 'qualification.markParticipantAbsent';
+  payload: {
+    participantId: string;
+  };
+};
+
+export type MoveQualificationParticipantToEndCommand = CommandMeta & {
+  type: 'qualification.moveParticipantToEnd';
+  payload: {
+    participantId: string;
+  };
+};
+
 export type PauseQualificationTimerCommand = CommandMeta & {
   type: 'qualification.timer.pause';
   payload: Record<string, never>;
@@ -197,6 +211,8 @@ export type AppCommand =
   | SubmitQualificationScoreCommand
   | GoToNextQualificationParticipantCommand
   | AdvanceQualificationParticipantCommand
+  | MarkQualificationParticipantAbsentCommand
+  | MoveQualificationParticipantToEndCommand
   | PauseQualificationTimerCommand
   | ResumeQualificationTimerCommand
   | RestartQualificationTimerCommand

@@ -6,8 +6,6 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useBattleState } from '@stores/battle/useBattleState';
 import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
-import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
 import { calculateRanking } from '@domain/qualification/calculateRanking';
 import { getQualificationParticipants } from '@domain/sync/stateSelectors';
 import { RankingRow } from './RankingRow';
@@ -16,8 +14,6 @@ export const RankingsScreen: React.FC = () => {
   const { state, isHost } = useBattleState();
   const generateBracket = useDemoBattleStore(s => s.generateBracket);
   const canGenerateBracket = useDemoBattleStore(s => s.canGenerateBracket);
-  const generateRemoteBracket = useJudgingClientStore(s => s.generateBracket);
-  const roles = useSessionStore(s => s.roles);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
 
   const participants = state ? getQualificationParticipants(state) : [];
@@ -36,21 +32,12 @@ export const RankingsScreen: React.FC = () => {
   const avgScore = ranking.length > 0
     ? ranking.reduce((sum, r) => sum + r.averageScore, 0) / ranking.length
     : 0;
-  const canManageBracket = isHost || roles.includes('mc');
+  const canManageBracket = isHost;
   const canSubmitBracket =
-    isHost
-      ? canGenerateBracket() && selectedParticipantIds.length >= 2
-      : state?.event.status === 'qualification_finished' &&
-        state.battles.length === 0 &&
-        selectedParticipantIds.length >= 2;
+    isHost && canGenerateBracket() && selectedParticipantIds.length >= 2;
 
   const handleGenerateBracket = (): void => {
-    if (isHost) {
-      void generateBracket(selectedParticipantIds);
-      return;
-    }
-
-    generateRemoteBracket(selectedParticipantIds);
+    void generateBracket(selectedParticipantIds);
   };
 
   const selectBracketCutoff = (participantId: string): void => {

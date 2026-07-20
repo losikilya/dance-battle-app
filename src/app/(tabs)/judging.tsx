@@ -1,6 +1,7 @@
 import { JudgeQualificationScreen } from '@screens/JudgeQualificationScreen';
 import { JudgeBattleVotingScreen } from '@screens/JudgeBattleVotingScreen';
 import { JudgeConnectScreen } from '@screens/JudgeConnectScreen';
+import { ConnectionLostScreen } from '@screens/ConnectionLostScreen';
 import { Box, Text } from '@components';
 import Colors from '@constants/Colors';
 import { useSessionStore } from '@stores/session/useSessionStore';
@@ -11,11 +12,12 @@ export default function JudgingTab(): React.JSX.Element {
   const roles = useSessionStore(s => s.roles);
   const assignedClientRole = useJudgingClientStore(s => s.role);
   const status = useJudgingClientStore(s => s.status);
+  const serverAddress = useJudgingClientStore(s => s.serverAddress);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const eventStatus = syncedState?.event.status ?? 'draft';
-  const effectiveRole = assignedClientRole ?? (roles.includes('host')
+  const effectiveRole = roles.includes('host') && assignedClientRole === null
     ? 'host'
-    : roles.find((item) => item !== 'spectator') ?? 'spectator');
+    : assignedClientRole ?? 'spectator';
 
   if (effectiveRole === 'mc' || effectiveRole === 'spectator') {
     return <Redirect href="/(tabs)/live" />;
@@ -32,6 +34,10 @@ export default function JudgingTab(): React.JSX.Element {
   }
 
   if (status !== 'connected') {
+    if (serverAddress !== null) {
+      return <ConnectionLostScreen />;
+    }
+
     return <JudgeConnectScreen />;
   }
 

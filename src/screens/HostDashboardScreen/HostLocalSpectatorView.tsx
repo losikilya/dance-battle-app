@@ -7,6 +7,10 @@ import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
 import { BattleDuelCard } from '@screens/SpectatorLiveScreen/BattleDuelCard';
 import { LiveScoreBar } from '@screens/SpectatorLiveScreen/LiveScoreBar';
 import type { Battle, BattleRound } from '@domain/battle/types';
+import {
+  formatBattleParticipantNames,
+  getBattleParticipantDisplayRows,
+} from '@screens/shared/battleDisplay';
 
 const ROUND_LABELS: Record<BattleRound, string> = {
   custom: getResource('bracket_round_custom'),
@@ -60,22 +64,18 @@ export const HostLocalSpectatorView: React.FC = () => {
     battles.find(battle => battle.id === activeBattleId) ?? null;
   const latestFinishedBattle = getLatestFinishedBattle(battles);
   const displayBattle = activeBattle ?? latestFinishedBattle;
-  const displayBattleId = displayBattle?.id ?? null;
   const isLiveBattle = activeBattle !== null;
-  const participantA = participants.find(
-    item => item.id === displayBattle?.participantAId,
+  const displayParticipantRows = displayBattle
+    ? getBattleParticipantDisplayRows({
+        battle: displayBattle,
+        participants,
+        votes,
+      })
+    : [];
+  const maxVotes = Math.max(
+    ...displayParticipantRows.map(row => row.voteCount),
+    1,
   );
-  const participantB = participants.find(
-    item => item.id === displayBattle?.participantBId,
-  );
-  const battleVotes = votes.filter(vote => vote.battleId === displayBattleId);
-  const votesA = battleVotes.filter(
-    vote => vote.winnerId === displayBattle?.participantAId,
-  ).length;
-  const votesB = battleVotes.filter(
-    vote => vote.winnerId === displayBattle?.participantBId,
-  ).length;
-  const maxVotes = Math.max(votesA, votesB, 1);
   const winner = participants.find(item => item.id === displayBattle?.winnerId);
   const championId = getChampionId();
   const champion = participants.find(item => item.id === championId);
@@ -98,7 +98,7 @@ export const HostLocalSpectatorView: React.FC = () => {
         <Text variant="body2" color="primary">LOCAL SPECTATOR VIEW</Text>
         <Text variant="h1">{event.title}</Text>
         <Text variant="body2" color="textSecondary">
-          {event.battleConfiguration?.categoryTitle ?? '—'}
+          {event.battleConfiguration?.categoryTitle ?? '-'}
         </Text>
       </Box>
 
@@ -115,8 +115,7 @@ export const HostLocalSpectatorView: React.FC = () => {
         <>
           <Box mb={16}>
             <BattleDuelCard
-              participantA={participantA}
-              participantB={participantB}
+              participants={displayParticipantRows}
               round={displayBattle.round}
               broadcastLabel={
                 isLiveBattle
@@ -132,18 +131,19 @@ export const HostLocalSpectatorView: React.FC = () => {
                 ? getResource('spectator_live_score')
                 : getResource('spectator_result_score')}
             </Text>
-            <LiveScoreBar
-              label={participantA?.name ?? 'A'}
-              score={votesA}
-              fill={votesA / maxVotes}
-              color={Colors.primary.main}
-            />
-            <LiveScoreBar
-              label={participantB?.name ?? 'B'}
-              score={votesB}
-              fill={votesB / maxVotes}
-              color={Colors.secondary.main}
-            />
+            {displayParticipantRows.map((row, index) => (
+              <LiveScoreBar
+                key={row.participantId}
+                label={row.name}
+                score={row.voteCount}
+                fill={row.voteCount / maxVotes}
+                color={
+                  index % 2 === 0
+                    ? Colors.primary.main
+                    : Colors.secondary.main
+                }
+              />
+            ))}
             {!isLiveBattle && winner !== undefined && (
               <Box style={styles.winnerChip} p={12} gap={2}>
                 <Text variant="body2" color="textSecondary">
@@ -169,26 +169,28 @@ export const HostLocalSpectatorView: React.FC = () => {
             {getResource('bracket_placeholder')}
           </Text>
         ) : (
-          sortedBattles.map(battle => (
-            <Box key={battle.id} gap={2}>
-              <Text variant="body">
-                {participants.find(p => p.id === battle.participantAId)?.name ??
-                  'Unknown'}
-                {' vs '}
-                {participants.find(p => p.id === battle.participantBId)?.name ??
-                  'Unknown'}
-              </Text>
-              <Text variant="body2" color="textSecondary">
-                {battle.round.toUpperCase()} · {battle.status.toUpperCase()}
-              </Text>
-              {battle.winnerId !== undefined && (
+          sortedBattles.map(battle => {
+            const rows = getBattleParticipantDisplayRows({
+              battle,
+              participants,
+              votes,
+            });
+
+            return (
+              <Box key={battle.id} gap={2}>
+                <Text variant="body">{formatBattleParticipantNames(rows)}</Text>
                 <Text variant="body2" color="textSecondary">
-                  {getResource('spectator_winner_prefix')}{' '}
-                  {participants.find(p => p.id === battle.winnerId)?.name ?? '—'}
+                  {battle.round.toUpperCase()} - {battle.status.toUpperCase()}
                 </Text>
-              )}
-            </Box>
-          ))
+                {battle.winnerId !== undefined && (
+                  <Text variant="body2" color="textSecondary">
+                    {getResource('spectator_winner_prefix')}{' '}
+                    {participants.find(p => p.id === battle.winnerId)?.name ?? '-'}
+                  </Text>
+                )}
+              </Box>
+            );
+          })
         )}
       </Box>
 
@@ -201,7 +203,7 @@ export const HostLocalSpectatorView: React.FC = () => {
                 {ROUND_LABELS[battle.round]} #{battle.slot}
               </Text>
               <Text variant="bodyBold" numberOfLines={1} style={styles.resultWinner}>
-                {participants.find(p => p.id === battle.winnerId)?.name ?? '—'}
+                {participants.find(p => p.id === battle.winnerId)?.name ?? '-'}
               </Text>
             </Box>
           ))}

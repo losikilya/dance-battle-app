@@ -5,6 +5,10 @@ import { HEADER_HEIGHT, FOOTER_HEIGHT } from '@constants/Dimensions';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import type { Battle, BattleRound } from '@domain/battle/types';
+import {
+  formatBattleParticipantNames,
+  getBattleParticipantDisplayRows,
+} from '@screens/shared/battleDisplay';
 import { BattleDuelCard } from './BattleDuelCard';
 import { LiveScoreBar } from './LiveScoreBar';
 
@@ -50,6 +54,8 @@ const getLatestFinishedBattle = (battles: Battle[]): Battle | null => {
 
 export const SpectatorLiveScreen: React.FC = () => {
   const syncedState = useJudgingClientStore(s => s.syncedState);
+  const assignedRole = useJudgingClientStore(s => s.role);
+  const lastError = useJudgingClientStore(s => s.lastError);
 
   const battles = syncedState?.battles ?? [];
   const activeBattleId = syncedState?.activeBattleId ?? null;
@@ -59,15 +65,18 @@ export const SpectatorLiveScreen: React.FC = () => {
   const displayBattleId = displayBattle?.id ?? null;
   const isLiveBattle = activeBattle !== null;
   const participants = syncedState?.participants ?? [];
-
-  const participantA = participants.find(p => p.id === displayBattle?.participantAId);
-  const participantB = participants.find(p => p.id === displayBattle?.participantBId);
-
   const allVotes = syncedState?.votes ?? [];
-  const battleVotes = allVotes.filter(v => v.battleId === displayBattleId);
-  const votesA = battleVotes.filter(v => v.winnerId === displayBattle?.participantAId).length;
-  const votesB = battleVotes.filter(v => v.winnerId === displayBattle?.participantBId).length;
-  const maxVotes = Math.max(votesA, votesB, 1);
+  const displayParticipantRows = displayBattle
+    ? getBattleParticipantDisplayRows({
+        battle: displayBattle,
+        participants,
+        votes: allVotes,
+      })
+    : [];
+  const maxVotes = Math.max(
+    ...displayParticipantRows.map(row => row.voteCount),
+    1,
+  );
   const winner = participants.find(p => p.id === displayBattle?.winnerId);
   const finalBattle = battles.find(
     b => b.round === 'final' && b.status === 'finished' && b.winnerId !== undefined,
@@ -100,7 +109,7 @@ export const SpectatorLiveScreen: React.FC = () => {
     >
       <Box direction="row" justify="space-between" align="flex-start" mb={16}>
         <Box gap={2}>
-          <Text variant="h2">{syncedState?.event.title ?? '—'}</Text>
+          <Text variant="h2">{syncedState?.event.title ?? '-'}</Text>
           <Text variant="body2" color="textSecondary">{getResource('spectator_battle_mode')}</Text>
         </Box>
         <Box align="flex-end" gap={2}>
@@ -112,6 +121,25 @@ export const SpectatorLiveScreen: React.FC = () => {
           </Text>
         </Box>
       </Box>
+
+      {assignedRole === 'spectator' && (
+        <Box style={styles.noticeCard} p={12} mb={16}>
+          <Text variant="bodyBold" centered>
+            {getResource('connection_waiting_assignment_title')}
+          </Text>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_waiting_assignment_body')}
+          </Text>
+        </Box>
+      )}
+
+      {lastError !== null && (
+        <Box style={styles.noticeCard} p={12} mb={16}>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_remote_error_prefix')}: {lastError}
+          </Text>
+        </Box>
+      )}
 
       {champion !== undefined && (
         <Box style={styles.championCard} p={20} gap={4} mb={16}>
@@ -128,8 +156,7 @@ export const SpectatorLiveScreen: React.FC = () => {
         <>
           <Box mb={16}>
             <BattleDuelCard
-              participantA={participantA}
-              participantB={participantB}
+              participants={displayParticipantRows}
               round={displayBattle.round as BattleRound}
               broadcastLabel={
                 isLiveBattle
@@ -146,18 +173,19 @@ export const SpectatorLiveScreen: React.FC = () => {
                 ? getResource('spectator_live_score')
                 : getResource('spectator_result_score')}
             </Text>
-            <LiveScoreBar
-              label={participantA?.name ?? 'A'}
-              score={votesA}
-              fill={votesA / maxVotes}
-              color={Colors.primary.main}
-            />
-            <LiveScoreBar
-              label={participantB?.name ?? 'B'}
-              score={votesB}
-              fill={votesB / maxVotes}
-              color={Colors.secondary.main}
-            />
+            {displayParticipantRows.map((row, index) => (
+              <LiveScoreBar
+                key={row.participantId}
+                label={row.name}
+                score={row.voteCount}
+                fill={row.voteCount / maxVotes}
+                color={
+                  index % 2 === 0
+                    ? Colors.primary.main
+                    : Colors.secondary.main
+                }
+              />
+            ))}
             <Box direction="row" gap={12} mt={4}>
               <Box style={styles.metaChip} p={12} gap={2} flex={1}>
                 <Text variant="body2" color="textSecondary">
@@ -169,7 +197,7 @@ export const SpectatorLiveScreen: React.FC = () => {
                 <Text variant="body2" color="textSecondary">
                   {getResource('spectator_audience')}
                 </Text>
-                <Text variant="bodyBold">—</Text>
+                <Text variant="bodyBold">-</Text>
               </Box>
             </Box>
             {!isLiveBattle && winner !== undefined && (
@@ -193,25 +221,27 @@ export const SpectatorLiveScreen: React.FC = () => {
                 </Text>
               </Box>
               {currentRoundBattles.map(b => {
-                const nameA = participants.find(p => p.id === b.participantAId)?.name ?? '—';
-                const nameB = participants.find(p => p.id === b.participantBId)?.name ?? '—';
+                const rows = getBattleParticipantDisplayRows({
+                  battle: b,
+                  participants,
+                  votes: allVotes,
+                });
                 const battleWinner = participants.find(p => p.id === b.winnerId);
                 const isActive = b.id === displayBattleId;
                 return (
                   <Box key={b.id} gap={4}>
-                    <Box direction="row" align="center" gap={8}>
-                      <Box
-                        style={isActive ? { ...styles.bracketSlot, ...styles.bracketSlotActive } : styles.bracketSlot}
-                        px={8}
-                        py={4}
-                        flex={1}
-                      >
-                        <Text variant="body2" numberOfLines={1}>{nameA}</Text>
-                      </Box>
-                      <Text variant="body2" color="textSecondary">vs</Text>
-                      <Box style={styles.bracketSlot} px={8} py={4} flex={1}>
-                        <Text variant="body2" numberOfLines={1}>{nameB}</Text>
-                      </Box>
+                    <Box
+                      style={
+                        isActive
+                          ? { ...styles.bracketSlot, ...styles.bracketSlotActive }
+                          : styles.bracketSlot
+                      }
+                      px={8}
+                      py={4}
+                    >
+                      <Text variant="body2" numberOfLines={1}>
+                        {formatBattleParticipantNames(rows)}
+                      </Text>
                     </Box>
                     {battleWinner !== undefined && (
                       <Text variant="body2" color="textSecondary">
@@ -237,7 +267,7 @@ export const SpectatorLiveScreen: React.FC = () => {
                       {ROUND_LABELS[b.round]} #{b.slot}
                     </Text>
                     <Text variant="bodyBold" numberOfLines={1} style={styles.resultWinner}>
-                      {battleWinner?.name ?? '—'}
+                      {battleWinner?.name ?? '-'}
                     </Text>
                   </Box>
                 );
@@ -289,6 +319,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.primary.main,
+  },
+  noticeCard: {
+    backgroundColor: Colors.dark.backgroundLight,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.status.warning,
   },
   bracketCard: {
     backgroundColor: Colors.dark.backgroundLight,

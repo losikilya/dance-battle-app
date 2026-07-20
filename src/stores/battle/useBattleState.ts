@@ -7,10 +7,12 @@ import { getActiveBattleConfigurationId, isInBattleConfiguration } from "@domain
 export type BattleStateResult = {
   state: BattleAppState | null;
   isHost: boolean;
+  source: 'host' | 'remote';
 };
 
 export function useBattleState(): BattleStateResult {
   const hasHostRole = useSessionStore((s) => s.roles.includes('host'));
+  const assignedClientRole = useJudgingClientStore((s) => s.role);
 
   const event = useDemoBattleStore((s) => s.event);
   const participants = useDemoBattleStore((s) => s.participants);
@@ -26,8 +28,8 @@ export function useBattleState(): BattleStateResult {
   const systemLogs = useDemoBattleStore((s) => s.systemLogs);
   const clientStatus = useJudgingClientStore((s) => s.status);
   const syncedState = useJudgingClientStore((s) => s.syncedState);
-  const isRemoteClientConnected = clientStatus === 'connected' && syncedState !== null;
-  const isHost = hasHostRole && !isRemoteClientConnected;
+  const isRemoteClient = assignedClientRole !== null || clientStatus === 'connected';
+  const isHost = hasHostRole && !isRemoteClient;
 
   const activeBattleConfigurationId = getActiveBattleConfigurationId(event);
   const activeParticipants = participants.filter(
@@ -57,7 +59,11 @@ export function useBattleState(): BattleStateResult {
   };
 
   if (!syncedState) {
-    return { state: isHost ? hostState : null, isHost };
+    return {
+      state: isHost ? hostState : null,
+      isHost,
+      source: isHost ? 'host' : 'remote',
+    };
   }
 
   const syncedActiveBattleConfigurationId = getActiveBattleConfigurationId(syncedState.event);
@@ -81,5 +87,9 @@ export function useBattleState(): BattleStateResult {
     votes: syncedState.votes.filter((vote) => syncedBattleIds.has(vote.battleId)),
   };
 
-  return { state: isHost ? hostState : filteredSyncedState, isHost };
+  return {
+    state: isHost ? hostState : filteredSyncedState,
+    isHost,
+    source: isHost ? 'host' : 'remote',
+  };
 }

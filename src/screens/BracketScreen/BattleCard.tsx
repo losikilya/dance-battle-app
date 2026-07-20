@@ -3,12 +3,20 @@ import { useRouter } from 'expo-router';
 import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
-import { Battle } from '@domain/battle/types';
-import { useDemoBattleStore } from '@stores/demoBattle/useDemoBattleStore';
-import { useSessionStore } from '@stores/session/useSessionStore';
+import type { Battle, BattleVote } from '@domain/battle/types';
+import type { Participant } from '@domain/participant/types';
+import { getBattleParticipantDisplayRows } from '@screens/shared/battleDisplay';
 
 type BattleCardProps = {
   battle: Battle;
+  participants: Participant[];
+  votes: BattleVote[];
+  canStartBattle?: boolean;
+  canOpenVoting?: boolean;
+  canSubmitMockVotes?: boolean;
+  onStartBattle?: (battleId: string) => void;
+  onOpenVoting?: (battleId: string) => void;
+  onSubmitMockVotes?: (battleId: string) => void;
 };
 
 type ParticipantVoteRowProps = {
@@ -31,22 +39,23 @@ const ParticipantVoteRow: React.FC<ParticipantVoteRowProps> = ({ name, votes, is
   </Box>
 );
 
-export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
+export const BattleCard: React.FC<BattleCardProps> = ({
+  battle,
+  participants,
+  votes,
+  canStartBattle = false,
+  canOpenVoting = false,
+  canSubmitMockVotes = false,
+  onStartBattle,
+  onOpenVoting,
+  onSubmitMockVotes,
+}) => {
   const router = useRouter();
-  const isHost = useSessionStore(s => s.roles.includes('host'));
-  const getParticipantName = useDemoBattleStore(s => s.getParticipantName);
-  const getVotesForBattle = useDemoBattleStore(s => s.getVotesForBattle);
-  const startBattle = useDemoBattleStore(s => s.startBattle);
-  const openBattleVoting = useDemoBattleStore(s => s.openBattleVoting);
-  const canStartBattle = useDemoBattleStore(s => s.canStartBattle);
-  const canOpenBattleVoting = useDemoBattleStore(s => s.canOpenBattleVoting);
-  const submitRandomVotesForBattle = useDemoBattleStore(s => s.submitRandomVotesForBattle);
-
-  const votes = getVotesForBattle(battle.id);
-  const participantIds = battle.participantIds ?? [
-    battle.participantAId,
-    battle.participantBId,
-  ];
+  const participantRows = getBattleParticipantDisplayRows({
+    battle,
+    participants,
+    votes,
+  });
 
   const isFinished = battle.status === 'finished';
 
@@ -82,34 +91,35 @@ export const BattleCard: React.FC<BattleCardProps> = ({ battle }) => {
             <Text variant="body2" style={{ color: statusColor }}>{statusLabel}</Text>
           </Box>
         </Box>
-        {participantIds.map((participantId) => (
+        {participantRows.map((row) => (
           <ParticipantVoteRow
-            key={participantId}
-            name={getParticipantName(participantId)}
-            votes={votes.filter(v => v.winnerId === participantId).length}
-            isWinner={battle.winnerId === participantId}
+            key={row.participantId}
+            name={row.name}
+            votes={row.voteCount}
+            isWinner={row.isWinner}
           />
         ))}
-        {isHost && battle.status === 'pending' && (
+        {onStartBattle && battle.status === 'pending' && (
           <Button
-            disabled={!canStartBattle(battle.id)}
-            onPress={() => { void startBattle(battle.id); }}
+            disabled={!canStartBattle}
+            onPress={() => { onStartBattle(battle.id); }}
           >
             {getResource('battle_start_battle')}
           </Button>
         )}
-        {isHost && battle.status === 'active' && (
+        {onOpenVoting && battle.status === 'active' && (
           <Button
-            disabled={!canOpenBattleVoting(battle.id)}
-            onPress={() => { void openBattleVoting(battle.id); }}
+            disabled={!canOpenVoting}
+            onPress={() => { onOpenVoting(battle.id); }}
           >
             {getResource('battle_open_voting')}
           </Button>
         )}
-        {isHost && !isFinished && (
+        {onSubmitMockVotes && !isFinished && (
           <Button
             variant="outlined"
-            onPress={() => { void submitRandomVotesForBattle(battle.id); }}
+            disabled={!canSubmitMockVotes}
+            onPress={() => { onSubmitMockVotes(battle.id); }}
           >
             {getResource('battle_mock_votes')}
           </Button>

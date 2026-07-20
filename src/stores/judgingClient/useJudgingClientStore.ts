@@ -18,6 +18,7 @@ import {
   parseManualAddress,
   type ParsedHostAddress,
 } from '../../infrastructure/network/connectionAddress';
+import { getOrCreateClientDeviceId } from '../../infrastructure/storage/clientIdentityRepository';
 import { createId } from '../../shared/lib/createId';
 
 type TcpModule = typeof TcpSocket & {
@@ -76,6 +77,7 @@ type JudgingClientState = {
 type JudgingClientActions = {
   connect: (params: ConnectParams) => void;
   connectToHost: (params: ConnectToHostParams) => void;
+  hydrateDeviceId: () => Promise<string>;
   disconnect: () => void;
   sendCommand: (command: AppCommand) => void;
   submitCurrentQualificationScore: (score: number) => void;
@@ -87,8 +89,9 @@ type JudgingClientActions = {
   resumeQualificationTimer: () => void;
   restartQualificationTimer: () => void;
   advanceQualificationParticipant: () => void;
+  markCurrentParticipantAbsent: () => void;
+  moveCurrentParticipantToEnd: () => void;
   finishQualification: () => void;
-  generateBracket: (participantIds: string[]) => void;
   requestSnapshot: () => void;
   sendScore: (params: { participantId: string; score: number }) => void;
   sendVote: (params: { battleId: string; winnerId: string }) => void;
@@ -185,6 +188,23 @@ export const useJudgingClientStore = create<
     }
   };
 
+  const getDisconnectedConnectionState = () => ({
+    status: 'disconnected' as const,
+    host: null,
+    port: null,
+    serverAddress: null,
+    assignedJudgeId: null,
+    assignedJudgeName: null,
+    syncedState: null,
+    lastError: null,
+    error: null,
+    reconnectAttempts: 0,
+    role: null,
+    name: null,
+    requestedJudgeId: null,
+    pendingAddress: null,
+  });
+
   const writeMessage = (message: ClientMessage): void => {
     if (clientSocket && !clientSocket.destroyed) {
       clientSocket.write(`${JSON.stringify(message)}\n`);
@@ -203,6 +223,20 @@ export const useJudgingClientStore = create<
       code,
       message,
     });
+  };
+
+  const hydrateDeviceId = async (): Promise<string> => {
+    try {
+      const deviceId = await getOrCreateClientDeviceId();
+      set({ deviceId });
+      return deviceId;
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Unable to load stable client identity';
+      set({ lastError: message, error: message });
+      return get().deviceId;
+    }
   };
 
   const handleMessage = (rawMessage: unknown): void => {
@@ -336,15 +370,17 @@ export const useJudgingClientStore = create<
 
       if (serverAddress && role) {
         const parsedAddress = parseManualAddress(serverAddress);
-        connectToParsedAddress(
-          parsedAddress.ok ? parsedAddress.value : null,
-          {
-            role: 'spectator',
-            name: name ?? undefined,
-            requestedJudgeId: requestedJudgeId ?? undefined,
-          },
-          true,
-        );
+        void hydrateDeviceId().then(() => {
+          connectToParsedAddress(
+            parsedAddress.ok ? parsedAddress.value : null,
+            {
+              role: 'spectator',
+              name: name ?? undefined,
+              requestedJudgeId: requestedJudgeId ?? undefined,
+            },
+            true,
+          );
+        });
       }
     }, 3000);
   };
@@ -507,6 +543,8 @@ export const useJudgingClientStore = create<
     requestedJudgeId: null,
     pendingAddress: null,
 
+    hydrateDeviceId,
+
     getCurrentQualificationParticipant: (): Participant | null => {
       const { assignedJudgeId, syncedState } = get();
 
@@ -564,11 +602,13 @@ export const useJudgingClientStore = create<
         return;
       }
 
-      connectToParsedAddress(parsedAddress.value, {
-        role,
-        name: name ?? undefined,
-        requestedJudgeId: requestedJudgeId ?? undefined,
-      }, false);
+      void hydrateDeviceId().then(() => {
+        connectToParsedAddress(parsedAddress.value, {
+          role,
+          name: name ?? undefined,
+          requestedJudgeId: requestedJudgeId ?? undefined,
+        }, false);
+      });
     },
 
     connectToHost: ({ host, port, role, name, requestedJudgeId }): void => {
@@ -585,15 +625,7 @@ export const useJudgingClientStore = create<
       closeClientSocket();
 
       reconnectAttempts = 0;
-      set({
-        status: 'disconnected',
-        assignedJudgeId: null,
-        assignedJudgeName: null,
-        syncedState: null,
-        lastError: null,
-        error: null,
-        reconnectAttempts: 0,
-      });
+      set(getDisconnectedConnectionState());
     },
 
     resetConnectionTarget: (): void => {
@@ -601,22 +633,7 @@ export const useJudgingClientStore = create<
       closeClientSocket();
 
       reconnectAttempts = 0;
-      set({
-        status: 'disconnected',
-        host: null,
-        port: null,
-        serverAddress: null,
-        assignedJudgeId: null,
-        assignedJudgeName: null,
-        syncedState: null,
-        lastError: null,
-        error: null,
-        reconnectAttempts: 0,
-        role: null,
-        name: null,
-        requestedJudgeId: null,
-        pendingAddress: null,
-      });
+      set(getDisconnectedConnectionState());
     },
 
     sendCommand,
@@ -702,12 +719,54 @@ export const useJudgingClientStore = create<
       );
     },
 
-    finishQualification: (): void => {
-      sendCommand(createCommand('qualification.finish', {}));
+    markCurrentParticipantAbsent: (): void => {
+      const syncedState = get().syncedState;
+      const participant = syncedState
+        ? getQualificationParticipants(syncedState)[
+            syncedState.currentQualificationParticipantIndex
+          ] ?? null
+        : null;
+
+      if (!participant) {
+        set({
+          lastError: 'Current qualification participant was not found',
+          error: 'Current qualification participant was not found',
+        });
+        return;
+      }
+
+      sendCommand(
+        createCommand('qualification.markParticipantAbsent', {
+          participantId: participant.id,
+        }),
+      );
     },
 
-    generateBracket: (participantIds): void => {
-      sendCommand(createCommand('bracket.generate', { participantIds }));
+    moveCurrentParticipantToEnd: (): void => {
+      const syncedState = get().syncedState;
+      const participant = syncedState
+        ? getQualificationParticipants(syncedState)[
+            syncedState.currentQualificationParticipantIndex
+          ] ?? null
+        : null;
+
+      if (!participant) {
+        set({
+          lastError: 'Current qualification participant was not found',
+          error: 'Current qualification participant was not found',
+        });
+        return;
+      }
+
+      sendCommand(
+        createCommand('qualification.moveParticipantToEnd', {
+          participantId: participant.id,
+        }),
+      );
+    },
+
+    finishQualification: (): void => {
+      sendCommand(createCommand('qualification.finish', {}));
     },
 
     requestSnapshot: (): void => {

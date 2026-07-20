@@ -9,6 +9,7 @@ import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { parseQrPayload } from '../infrastructure/network/connectionAddress';
+import { resetAppSession } from '../shared/session/resetAppSession';
 
 export default function ScanQrScreen(): React.JSX.Element {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function ScanQrScreen(): React.JSX.Element {
   const [scanError, setScanError] = useState<string | null>(null);
 
   const handleBack = () => {
+    resetAppSession();
     router.replace('/(auth)/discovery');
   };
 

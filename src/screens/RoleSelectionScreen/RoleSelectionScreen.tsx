@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Colors from "@constants/Colors";
@@ -15,10 +15,24 @@ export const RoleSelectionScreen: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<AppRole | null>(null);
   const setRole = useSessionStore((s) => s.setRole);
   const pendingAddress = useJudgingClientStore((s) => s.pendingAddress);
+  const connectToHost = useJudgingClientStore((s) => s.connectToHost);
 
   const handleConfirm = () => {
     if (!selectedRole) return;
     setRole(selectedRole);
+
+    if (
+      Platform.OS === "web" &&
+      __DEV__ &&
+      selectedRole !== "host"
+    ) {
+      connectToHost({
+        host: "web-preview",
+        port: 0,
+        role: selectedRole,
+        name: `Web ${ROLE_CONFIG.find(config => config.role === selectedRole)?.title ?? selectedRole}`,
+      });
+    }
 
     if (pendingAddress && selectedRole === "judge") {
       router.replace("/(tabs)/judging");

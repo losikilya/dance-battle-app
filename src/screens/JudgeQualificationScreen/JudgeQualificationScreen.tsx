@@ -83,6 +83,7 @@ export const JudgeQualificationScreen: React.FC = () => {
 
   const status = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
+  const lastError = useJudgingClientStore(s => s.lastError);
   const sendScore = useJudgingClientStore(s => s.sendScore);
   const judgeId = useJudgingClientStore(s => s.assignedJudgeId);
 
@@ -179,6 +180,25 @@ export const JudgeQualificationScreen: React.FC = () => {
           </Text>
         </Box>
       </Box>
+
+      {lastError !== null && (
+        <Box style={styles.notice} p={12} mb={16}>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_remote_error_prefix')}: {lastError}
+          </Text>
+        </Box>
+      )}
+
+      {judgeId === null && (
+        <Box style={styles.notice} p={12} mb={16}>
+          <Text variant="bodyBold" centered>
+            {getResource('connection_waiting_assignment_title')}
+          </Text>
+          <Text variant="body2" color="textSecondary" centered>
+            {getResource('connection_waiting_assignment_body')}
+          </Text>
+        </Box>
+      )}
 
       {currentParticipant !== null ? (
         <>

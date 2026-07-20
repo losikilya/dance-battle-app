@@ -13,6 +13,7 @@ import {
 import { useJudgingServerStore } from "@stores/judgingServer/useJudgingServerStore";
 import { useSessionStore } from "@stores/session/useSessionStore";
 import { parseManualAddress } from "../../infrastructure/network/connectionAddress";
+import { resetAppSession } from "../../shared/session/resetAppSession";
 
 export const JudgeConnectScreen: React.FC = () => {
   const router = useRouter();
@@ -49,6 +50,7 @@ export const JudgeConnectScreen: React.FC = () => {
       return;
     }
 
+    resetAppSession();
     router.replace("/(auth)/discovery");
   };
 

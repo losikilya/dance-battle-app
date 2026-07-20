@@ -117,8 +117,20 @@ export function BattleDashboardScreen(): React.JSX.Element {
     (state) => state.fillRandomQualificationScores,
   );
   const battles = useDemoBattleStore((state) => state.battles);
+  const votes = useDemoBattleStore((state) => state.votes);
   const generateNextRound = useDemoBattleStore(
     (state) => state.generateNextRound,
+  );
+  const startBattle = useDemoBattleStore((state) => state.startBattle);
+  const openBattleVoting = useDemoBattleStore(
+    (state) => state.openBattleVoting,
+  );
+  const canStartBattle = useDemoBattleStore((state) => state.canStartBattle);
+  const canOpenBattleVoting = useDemoBattleStore(
+    (state) => state.canOpenBattleVoting,
+  );
+  const submitRandomVotesForBattle = useDemoBattleStore(
+    (state) => state.submitRandomVotesForBattle,
   );
   const connectedClients = useJudgingServerStore(
     (state) => state.connectedClients,
@@ -557,7 +569,24 @@ export function BattleDashboardScreen(): React.JSX.Element {
                   {roundLabels[round]}
                 </Text>
                 {roundBattles.map((battle) => (
-                  <BattleCard key={battle.id} battle={battle} />
+                  <BattleCard
+                    key={battle.id}
+                    battle={battle}
+                    participants={participants}
+                    votes={votes}
+                    canStartBattle={canStartBattle(battle.id)}
+                    canOpenVoting={canOpenBattleVoting(battle.id)}
+                    canSubmitMockVotes
+                    onStartBattle={(battleId) => {
+                      void startBattle(battleId);
+                    }}
+                    onOpenVoting={(battleId) => {
+                      void openBattleVoting(battleId);
+                    }}
+                    onSubmitMockVotes={(battleId) => {
+                      void submitRandomVotesForBattle(battleId);
+                    }}
+                  />
                 ))}
               </Box>
             );
