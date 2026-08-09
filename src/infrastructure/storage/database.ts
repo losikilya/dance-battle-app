@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-const DATABASE_NAME = 'versa.db';
+const DATABASE_NAME = 'koller.db';
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 

@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Versa",
+    "name": "Koller",
     "slug": "dance-battle-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "versa",
+    "scheme": "koller",
     "experiments": {
       "typedRoutes": true
     },
@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.selosik.versa",
+      "bundleIdentifier": "com.selosik.koller",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -30,7 +30,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.selosik.versa",
+      "package": "com.selosik.koller",
       "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"]
     },
     "web": {

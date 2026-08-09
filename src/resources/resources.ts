@@ -160,7 +160,7 @@ export const resources = {
   discovery_role_spectator: 'SPECTATOR',
   discovery_scan_qr: 'SCAN QR CODE',
   discovery_subtitle: 'YOUR DANCE TOURNAMENT PLATFORM',
-  discovery_title: 'Versa',
+  discovery_title: 'Koller',
   go_home: "Go to home screen!",
   initial_setup: "Initial Setup",
   judge_badge_connected: 'CONNECTED',
