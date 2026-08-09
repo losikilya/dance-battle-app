@@ -92,7 +92,6 @@ export const resources = {
   create_event_category_label: 'CATEGORY / STYLE',
   create_event_format_label: 'BATTLE FORMAT',
   create_event_judges_label: 'NUMBER OF JUDGES',
-  create_event_submit: 'CREATE EVENT',
   create_event_self_run_roles: 'SELF-RUN ROLES',
   configure_battle_title: 'BATTLE SETUP',
   configure_battle_subtitle: 'The bracket will be built from qualification ranking.',

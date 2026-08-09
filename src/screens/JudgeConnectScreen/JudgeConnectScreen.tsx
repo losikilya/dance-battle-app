@@ -46,12 +46,12 @@ export const JudgeConnectScreen: React.FC = () => {
 
   const handleBack = () => {
     if (router.canGoBack()) {
-      router.back();
+      router.dismiss();
       return;
     }
 
     resetAppSession();
-    router.replace("/(auth)/discovery");
+    router.replace("/scan-qr");
   };
 
   const handleConnect = () => {
