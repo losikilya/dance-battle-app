@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Box, Button, Text } from "@components";
+import { Box, Button, ExternalLink, Text } from "@components";
 import Colors from "@constants/Colors";
 import { FOOTER_HEIGHT, HEADER_HEIGHT } from "@constants/Dimensions";
 import { getResource } from "@resources";
@@ -17,6 +17,10 @@ import { useJudgingClientStore } from "@stores/judgingClient/useJudgingClientSto
 import { useDemoBattleStore } from "@stores/demoBattle/useDemoBattleStore";
 import type { AppRole } from "@domain/role/types";
 import { resetAppSession } from "../../shared/session/resetAppSession";
+
+const PRIVACY_POLICY_URL =
+  "https://nickselyakh.github.io/koller-pages/privacy.html";
+const SUPPORT_URL = "https://nickselyakh.github.io/koller-pages/support.html";
 
 export const DiscoveryScreen: React.FC = () => {
   const router = useRouter();
@@ -173,6 +177,19 @@ export const DiscoveryScreen: React.FC = () => {
         <Button variant="outlined" color="secondary" onPress={handleScanQr}>
           {getResource("discovery_scan_qr")}
         </Button>
+      </Box>
+
+      <Box direction="row" justify="center" gap={24} mt={40}>
+        <ExternalLink href={PRIVACY_POLICY_URL}>
+          <Text variant="body2" color="textSecondary">
+            {getResource("discovery_privacy")}
+          </Text>
+        </ExternalLink>
+        <ExternalLink href={SUPPORT_URL}>
+          <Text variant="body2" color="textSecondary">
+            {getResource("discovery_support")}
+          </Text>
+        </ExternalLink>
       </Box>
     </ScrollView>
   );
