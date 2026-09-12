@@ -31,6 +31,7 @@ const ROUND_LABELS: Record<BattleRound, string> = {
 };
 
 export const BracketScreen: React.FC = () => {
+  const canUseDevMocks = __DEV__;
   const { state, isHost } = useBattleState();
   const hasJudgeRole = useSessionStore(s => s.roles.includes('judge'));
   const canGenerateNextRound = useDemoBattleStore(s => s.canGenerateNextRound);
@@ -105,7 +106,7 @@ export const BracketScreen: React.FC = () => {
                 votes={votes}
                 canStartBattle={isHost && canStartBattle(battle.id)}
                 canOpenVoting={isHost && canOpenBattleVoting(battle.id)}
-                canSubmitMockVotes={isHost}
+                canSubmitMockVotes={isHost && canUseDevMocks}
                 onStartBattle={
                   isHost
                     ? (battleId) => { void startBattle(battleId); }
@@ -117,7 +118,7 @@ export const BracketScreen: React.FC = () => {
                     : undefined
                 }
                 onSubmitMockVotes={
-                  isHost
+                  isHost && canUseDevMocks
                     ? (battleId) => { void submitRandomVotesForBattle(battleId); }
                     : undefined
                 }
