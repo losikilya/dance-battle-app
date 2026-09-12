@@ -20,7 +20,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.selosik.koller",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocalNetworkUsageDescription": "Koller uses the local network to connect judges, hosts, and presenters during a dance battle."
       }
     },
     "android": {
