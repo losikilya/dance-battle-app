@@ -1491,20 +1491,6 @@ function handleDeleteBattleConfigurationCommand(
     return commandFailure('not_found', 'Battle configuration was not found');
   }
 
-  if (configuration.status !== 'draft') {
-    return commandFailure(
-      'action_not_allowed',
-      'Only draft battle configurations can be deleted',
-    );
-  }
-
-  if (hasBattleConfigurationData(state, configuration.id)) {
-    return commandFailure(
-      'action_not_allowed',
-      'Battle configuration cannot be deleted after scores, battles, votes, or timer state exist',
-    );
-  }
-
   return commandSuccess([
     createAppEvent('battle.configurationDeleted', {
       battleConfigurationId: configuration.id,
