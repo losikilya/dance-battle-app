@@ -7,6 +7,7 @@ import { Box, Text, Button } from '@components';
 import Colors from '@constants/Colors';
 import { getResource } from '@resources';
 import { useJudgingClientStore } from '@stores/judgingClient/useJudgingClientStore';
+import { useJudgingServerStore } from '@stores/judgingServer/useJudgingServerStore';
 import { useSessionStore } from '@stores/session/useSessionStore';
 import { parseQrPayload } from '../infrastructure/network/connectionAddress';
 import { resetAppSession } from '../shared/session/resetAppSession';
@@ -19,6 +20,7 @@ export default function ScanQrScreen(): React.JSX.Element {
   const connectionStatus = useJudgingClientStore(s => s.status);
   const syncedState = useJudgingClientStore(s => s.syncedState);
   const lastConnectionError = useJudgingClientStore(s => s.lastError);
+  const stopServer = useJudgingServerStore(s => s.stopServer);
   const setRole = useSessionStore(s => s.setRole);
   const judgeName = useSessionStore(s => s.judgeName);
   const requestedJudgeId = useSessionStore(s => s.judgeId);
@@ -71,6 +73,7 @@ export default function ScanQrScreen(): React.JSX.Element {
     setScanned(true);
     setRole('spectator');
     resetConnectionTarget();
+    stopServer();
     setPendingAddress(null);
     connectToHost({
       host: parsedPayload.value.host,

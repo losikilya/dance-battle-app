@@ -1,6 +1,6 @@
 import { createId } from '../../shared/lib/createId';
 
-const STORAGE_KEY = 'battleflow.webPreview.deviceId';
+const STORAGE_KEY = 'koller.webPreview.deviceId';
 let memoryDeviceId: string | null = null;
 
 export async function getOrCreateClientDeviceId(): Promise<string> {

@@ -103,7 +103,8 @@ export function ConfigureBattleScreen(): React.JSX.Element {
 
     setRole('host');
     setSelfJudgeId(selfJudgeId);
-    router.replace({
+    router.replace('/(tabs)/host-battles');
+    router.push({
       pathname: '/battle-dashboard',
       params: { battleConfigurationId },
     });

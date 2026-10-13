@@ -1,40 +1,41 @@
 {
   "expo": {
-    "name": "Versa",
+    "name": "Koller",
     "slug": "dance-battle-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "versa",
+    "scheme": "koller",
     "experiments": {
       "typedRoutes": true
     },
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B0C0E"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.selosik.versa",
+      "bundleIdentifier": "com.selosik.koller",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocalNetworkUsageDescription": "Koller uses the local network to connect judges, hosts, and presenters during a dance battle."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0B0C0E"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.selosik.versa",
+      "package": "com.selosik.koller",
       "permissions": ["CAMERA", "INTERNET", "ACCESS_NETWORK_STATE"]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",

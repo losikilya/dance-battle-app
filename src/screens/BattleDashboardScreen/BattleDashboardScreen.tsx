@@ -89,6 +89,7 @@ function canGenerateNextRoundForBattles(battles: Battle[]): boolean {
 type BattleRosterList = "participants" | "judges" | "mc";
 
 export function BattleDashboardScreen(): React.JSX.Element {
+  const canUseDevMocks = __DEV__;
   const router = useRouter();
   const [openRosterList, setOpenRosterList] = useState<BattleRosterList | null>(
     null,
@@ -419,17 +420,21 @@ export function BattleDashboardScreen(): React.JSX.Element {
       icon: "people-outline",
       onPress: handleManageParticipants,
     },
-    {
-      id: "mock-qualification",
-      label: getResource("dashboard_action_mock_qualification"),
-      icon: "checkmark-done-outline",
-      onPress: () => {
-        void handleMockQualification();
-      },
-      disabled:
-        configuration.status !== "draft" &&
-        configuration.status !== "qualification",
-    },
+    ...(canUseDevMocks
+      ? [
+          {
+            id: "mock-qualification",
+            label: getResource("dashboard_action_mock_qualification"),
+            icon: "checkmark-done-outline",
+            onPress: () => {
+              void handleMockQualification();
+            },
+            disabled:
+              configuration.status !== "draft" &&
+              configuration.status !== "qualification",
+          },
+        ]
+      : []),
     {
       id: "start-qualification",
       label: getResource("dashboard_action_start_qualification"),
@@ -576,16 +581,20 @@ export function BattleDashboardScreen(): React.JSX.Element {
                     votes={votes}
                     canStartBattle={canStartBattle(battle.id)}
                     canOpenVoting={canOpenBattleVoting(battle.id)}
-                    canSubmitMockVotes
+                    canSubmitMockVotes={canUseDevMocks}
                     onStartBattle={(battleId) => {
                       void startBattle(battleId);
                     }}
                     onOpenVoting={(battleId) => {
                       void openBattleVoting(battleId);
                     }}
-                    onSubmitMockVotes={(battleId) => {
-                      void submitRandomVotesForBattle(battleId);
-                    }}
+                    onSubmitMockVotes={
+                      canUseDevMocks
+                        ? (battleId) => {
+                            void submitRandomVotesForBattle(battleId);
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </Box>
